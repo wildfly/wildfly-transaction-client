@@ -28,6 +28,8 @@ import javax.transaction.UserTransaction;
 
 import org.wildfly.naming.client.AbstractContext;
 import org.wildfly.naming.client.CloseableNamingEnumeration;
+import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.naming.client.util.FastHashtable;
 import org.wildfly.transaction.client.RemoteTransactionContext;
 
 /**
@@ -35,14 +37,14 @@ import org.wildfly.transaction.client.RemoteTransactionContext;
  */
 class TxnNamingContext extends AbstractContext {
 
-    private final URI location;
+    private final NamingProvider namingProvider;
 
-    TxnNamingContext(final URI location) {
-        this.location = location;
+    TxnNamingContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) {
+        this.namingProvider = namingProvider;
     }
 
     private UserTransaction getUserTransaction() {
-        return RemoteTransactionContext.getInstance().getUserTransaction(location);
+        return RemoteTransactionContext.getInstance().getUserTransaction();
     }
 
     protected Object lookupNative(final Name name) throws NamingException {
