@@ -113,7 +113,7 @@ public interface Log extends BasicLogger {
     SystemException failedToReceive(@Cause IOException e);
 
     @Message(id = 11, value = "Failed to send protocol message to remote peer")
-    SystemException failedToSend(@Cause IOException e);
+    SystemException failedToSend(@Cause Exception e);
 
     @Message(id = 12, value = "The peer threw a SystemException; see peer logs for more information")
     SystemException peerSystemException();
@@ -158,7 +158,7 @@ public interface Log extends BasicLogger {
     XAException failedToReceiveXA(@Cause IOException e, @Field int errorCode);
 
     @Message(id = 26, value = "Failed to send protocol message to remote peer")
-    XAException failedToSendXA(@Cause IOException e, @Field int errorCode);
+    XAException failedToSendXA(@Cause Exception e, @Field int errorCode);
 
     @Message(id = 27, value = "The protocol operation was interrupted locally")
     XAException operationInterruptedXA(@Field int errorCode);

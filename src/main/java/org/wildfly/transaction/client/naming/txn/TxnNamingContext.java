@@ -39,12 +39,12 @@ class TxnNamingContext extends AbstractContext {
 
     private final NamingProvider namingProvider;
 
-    TxnNamingContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) {
+    TxnNamingContext(final NamingProvider namingProvider, final FastHashtable<String, Object> env) {
         this.namingProvider = namingProvider;
     }
 
     private UserTransaction getUserTransaction() {
-        return RemoteTransactionContext.getInstance().getUserTransaction();
+        return RemoteTransactionContext.getInstance().getUserTransaction(namingProvider.getProviderUri());
     }
 
     protected Object lookupNative(final Name name) throws NamingException {

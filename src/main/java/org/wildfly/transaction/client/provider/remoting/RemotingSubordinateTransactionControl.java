@@ -30,6 +30,7 @@ import org.jboss.remoting3.MessageOutputStream;
 import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
+import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
@@ -74,7 +75,7 @@ class RemotingSubordinateTransactionControl extends FutureRemoteSubordinateTrans
             Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -129,7 +130,7 @@ class RemotingSubordinateTransactionControl extends FutureRemoteSubordinateTrans
             Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -178,7 +179,7 @@ class RemotingSubordinateTransactionControl extends FutureRemoteSubordinateTrans
             Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -229,7 +230,7 @@ class RemotingSubordinateTransactionControl extends FutureRemoteSubordinateTrans
             Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -278,7 +279,7 @@ class RemotingSubordinateTransactionControl extends FutureRemoteSubordinateTrans
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
             if (onePhase) Protocol.writeParam(Protocol.P_ONE_PHASE, os);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -329,7 +330,7 @@ class RemotingSubordinateTransactionControl extends FutureRemoteSubordinateTrans
             Protocol.writeParam(Protocol.P_XID, os, xid);
             final int initialTimeout = this.initialTimeout;
             if (initialTimeout != 0) Protocol.writeParam(Protocol.P_TXN_TIMEOUT, os, initialTimeout, Protocol.UNSIGNED);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {

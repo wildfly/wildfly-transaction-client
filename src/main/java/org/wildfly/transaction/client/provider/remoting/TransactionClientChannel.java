@@ -45,6 +45,7 @@ import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
 import org.wildfly.common.Assert;
+import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
@@ -155,7 +156,7 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
             os.writeByte(Protocol.M_XA_RECOVER);
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException e) {
+        } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         final ArrayList<Xid> recoveryList = new ArrayList<>();

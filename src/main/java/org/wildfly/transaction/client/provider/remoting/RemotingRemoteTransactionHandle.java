@@ -33,6 +33,7 @@ import org.jboss.remoting3.MessageOutputStream;
 import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
+import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 
@@ -81,7 +82,7 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl, Remot
                     final int peerIdentityId = channel.getConnection().getPeerIdentityId();
                     if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
                     if (remainingTimeout != 0) Protocol.writeParam(Protocol.P_TXN_TIMEOUT, os, remainingTimeout, Protocol.UNSIGNED);
-                } catch (IOException e) {
+                } catch (IOException | AuthenticationException e) {
                     statusRef.set(Status.STATUS_UNKNOWN);
                     throw Log.log.failedToSend(e);
                 }
@@ -163,7 +164,7 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl, Remot
                     Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
                     final int peerIdentityId = channel.getConnection().getPeerIdentityId();
                     if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-                } catch (IOException e) {
+                } catch (IOException | AuthenticationException e) {
                     statusRef.set(Status.STATUS_UNKNOWN);
                     throw Log.log.failedToSend(e);
                 }
@@ -241,7 +242,7 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl, Remot
                     Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
                     final int peerIdentityId = channel.getConnection().getPeerIdentityId();
                     if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-                } catch (IOException e) {
+                } catch (IOException | AuthenticationException e) {
                     statusRef.set(Status.STATUS_UNKNOWN);
                     throw Log.log.failedToSend(e);
                 }

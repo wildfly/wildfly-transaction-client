@@ -38,6 +38,6 @@ class TxnNamingContextFactory implements NamingContextFactory {
         if (namingProvider instanceof RemoteNamingProvider) {
             
         }
-        return new TxnNamingContext(namingProvider, nameScheme, env);
+        return new TxnNamingContext(namingProvider, env);
     }
 }
