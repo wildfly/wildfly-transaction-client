@@ -46,11 +46,11 @@ import org.jboss.remoting3._private.IntIndexHashMap;
 import org.jboss.remoting3._private.IntIndexMap;
 import org.jboss.remoting3.util.MessageTracker;
 import org.jboss.remoting3.util.StreamUtils;
+import org.wildfly.common.function.ExceptionSupplier;
 import org.wildfly.security.ParametricPrivilegedAction;
 import org.wildfly.security.auth.server.SecurityIdentity;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAImporter;
-import org.wildfly.transaction.client.XASupplier;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -885,7 +885,7 @@ final class TransactionServerChannel {
         }
     }
 
-    final class ImportedTxn extends Txn implements XASupplier<Transaction> {
+    final class ImportedTxn extends Txn implements ExceptionSupplier<Transaction, XAException> {
         private final Xid xid;
         private final long startTime;
         private final int timeout;

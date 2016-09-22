@@ -18,23 +18,26 @@
 
 package org.wildfly.transaction.client.naming.txn;
 
-import java.net.URI;
-import java.util.concurrent.ConcurrentMap;
-
 import javax.naming.Context;
+import javax.naming.NamingException;
 
-import org.wildfly.naming.client.NamingProviderFactory;
+import org.wildfly.naming.client.NamingContextFactory;
+import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.naming.client.remote.RemoteNamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-class TxnNamingProvider implements NamingProviderFactory {
-    public boolean supportsUriScheme(final String providerScheme, final String nameScheme) {
+class TxnNamingContextFactory implements NamingContextFactory {
+    public boolean supportsUriScheme(final NamingProvider namingProvider, final String nameScheme) {
         return nameScheme != null && nameScheme.equals("txn");
     }
 
-    public Context createRootContext(final String nameScheme, final URI providerUri, final FastHashtable<String, Object> env, final ConcurrentMap<String, Object> sharedEnv) {
-        return new TxnNamingContext(providerUri);
+    public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) throws NamingException {
+        if (namingProvider instanceof RemoteNamingProvider) {
+            
+        }
+        return new TxnNamingContext(namingProvider, nameScheme, env);
     }
 }

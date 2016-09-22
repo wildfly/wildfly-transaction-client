@@ -36,6 +36,7 @@ import javax.transaction.xa.Xid;
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Cause;
+import org.jboss.logging.annotations.Field;
 import org.jboss.logging.annotations.LogMessage;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
@@ -60,7 +61,7 @@ public interface Log extends BasicLogger {
 
     @LogMessage(level = Logger.Level.DEBUG)
     @Message(value = "Failed to configure a remote transaction service provider")
-    void serviceConfigurationFailed(ServiceConfigurationError e);
+    void serviceConfigurationFailed(@Cause ServiceConfigurationError e);
 
     @LogMessage(level = Logger.Level.DEBUG)
     @Message(value = "Closing the recovery stream after recovery failed threw an exception")
@@ -145,28 +146,28 @@ public interface Log extends BasicLogger {
     SystemException failedToAcquireConnection(@Cause IOException reason);
 
     @Message(id = 22, value = "The resource manager for remote connection to %s was already enlisted in a transaction")
-    XAException duplicateEnlistment(@Property int errorCode, URI uri);
+    XAException duplicateEnlistment(@Field int errorCode, URI uri);
 
     @Message(id = 23, value = "Invalid flag value")
     IllegalArgumentException invalidFlags();
 
     @Message(id = 24, value = "Duplicate transaction encountered for destination %s, transaction ID %s")
-    XAException duplicateTransaction(@Property int errorCode, URI uri, Xid xid);
+    XAException duplicateTransaction(@Field int errorCode, URI uri, Xid xid);
 
     @Message(id = 25, value = "Failed to receive protocol message from remote peer")
-    XAException failedToReceiveXA(@Cause IOException e, @Property int errorCode);
+    XAException failedToReceiveXA(@Cause IOException e, @Field int errorCode);
 
     @Message(id = 26, value = "Failed to send protocol message to remote peer")
-    XAException failedToSendXA(@Cause IOException e, @Property int errorCode);
+    XAException failedToSendXA(@Cause IOException e, @Field int errorCode);
 
     @Message(id = 27, value = "The protocol operation was interrupted locally")
-    XAException operationInterruptedXA(@Property int errorCode);
+    XAException operationInterruptedXA(@Field int errorCode);
 
     @Message(id = 28, value = "An unexpected protocol error occurred")
-    XAException protocolErrorXA(@Property int errorCode);
+    XAException protocolErrorXA(@Field int errorCode);
 
     @Message(id = 29, value = "The peer threw an XA exception")
-    XAException peerXaException(@Property int errorCode);
+    XAException peerXaException(@Field int errorCode);
 
     @Message(id = 30, value = "Invalid handle type; expected %s, actually received %s")
     IllegalArgumentException invalidHandleType(Class<?> expected, Class<?> actual);
@@ -181,13 +182,13 @@ public interface Log extends BasicLogger {
     IllegalStateException multipleProvidersRegistered(Endpoint e);
 
     @Message(id = 34, value = "Failed to acquire a connection for this operation")
-    XAException failedToAcquireConnectionXA(@Cause IOException e, @Property int errorCode);
+    XAException failedToAcquireConnectionXA(@Cause IOException e, @Field int errorCode);
 
-    @Message(id = 35, value = "Invalid handle type requested; must be a subtype of Transaction (non-inclusive)")
+    @Message(id = 35, value = "Invalid handle type requested; expected a subtype of Transaction (non-inclusive), got %s")
     IllegalArgumentException invalidHandleTypeRequested(Class<?> type);
 
     @Message(id = 36, value = "Transaction operation failed due to thread interruption")
-    XAException interruptedXA(@Property int errorCode);
+    XAException interruptedXA(@Field int errorCode);
 
     @Message(id = 37, value = "No transaction provider associated with the current thread")
     IllegalStateException noTransactionProvider();
@@ -198,6 +199,7 @@ public interface Log extends BasicLogger {
     @Message(id = 39, value = "Invalid null transaction")
     NullPointerException nullTransaction();
 
+    @LogMessage(level = Logger.Level.DEBUG)
     @Message(id = 40, value = "Rollback failed unexpectedly")
     void rollbackFailed(@Cause Throwable e);
 
@@ -220,44 +222,44 @@ public interface Log extends BasicLogger {
     IllegalStateException peerIllegalStateException();
 
     @Message(id = 47, value = "Unknown XA response received from peer")
-    XAException unknownResponseXa(@Property int errorCode);
+    XAException unknownResponseXa(@Field int errorCode);
 
     @Message(id = 48, value = "Failed to receive an XA response from peer")
-    XAException responseFailedXa(@Cause IOException cause, @Property int errorCode);
+    XAException responseFailedXa(@Cause IOException cause, @Field int errorCode);
 
     @Message(id = 49, value = "Negative transaction timeout provided")
-    XAException negativeTxnTimeoutXa(@Property int errorCode);
+    XAException negativeTxnTimeoutXa(@Field int errorCode);
 
     @Message(id = 50, value = "Unrecognized parameter with ID 0x%02x received")
-    XAException unrecognizedParameter(@Property int errorCode, int id);
+    XAException unrecognizedParameter(@Field int errorCode, int id);
 
     @Message(id = 51, value = "Expected parameter with ID 0x%02x, got parameter with ID 0x%02x instead")
     SystemException expectedParameter(int expected, int actual);
 
-    @Message(id = 51, value = "Expected parameter with ID 0x%02x, got parameter with ID 0x%02x instead")
-    XAException expectedParameterXa(@Property int errorCode, int expected, int actual);
+    @Message(id = 52, value = "Expected parameter with ID 0x%02x, got parameter with ID 0x%02x instead")
+    XAException expectedParameterXa(@Field int errorCode, int expected, int actual);
 
-    @Message(id = 52, value = "Delayed enlistment has failed")
+    @Message(id = 53, value = "Delayed enlistment has failed")
     DelayedEnlistmentException delayedEnlistmentFailed(@Cause Throwable cause);
 
-    @Message(id = 53, value = "Before-completion failed for resource %s")
+    @Message(id = 54, value = "Before-completion failed for resource %s")
     SynchronizationException beforeCompletionFailed(@Cause Throwable cause, XAResource resource);
 
-    @Message(id = 54, value = "Two-phase operation on single-phase transaction")
-    XAException onePhaseUserTransaction(@Property int errorCode);
+    @Message(id = 55, value = "Two-phase operation on single-phase transaction")
+    XAException onePhaseUserTransaction(@Field int errorCode);
 
-    @Message(id = 55, value = "Unknown provider for remote transactions with URI scheme \"%s\"")
+    @Message(id = 56, value = "Unknown provider for remote transactions with URI scheme \"%s\"")
     IllegalArgumentException unknownProvider(String scheme);
 
-    @Message(id = 56, value = "Attempted to outflow the same transaction from two different transaction managers")
+    @Message(id = 57, value = "Attempted to outflow the same transaction from two different transaction managers")
     SystemException outflowAcrossTransactionManagers();
 
-    @Message(id = 57, value = "This delayed enlistment handle was already enlisted")
+    @Message(id = 58, value = "This delayed enlistment handle was already enlisted")
     IllegalStateException alreadyEnlisted();
 
-    @Message(id = 58, value = "This delayed enlistment handle was already forgotten")
+    @Message(id = 59, value = "This delayed enlistment handle was already forgotten")
     IllegalStateException alreadyForgotten();
 
-    @Message(id = 59, value = "Transaction timed out")
-    XAException transactionTimedOut(@Property int errorCode);
+    @Message(id = 60, value = "Transaction timed out")
+    XAException transactionTimedOut(@Field int errorCode);
 }
