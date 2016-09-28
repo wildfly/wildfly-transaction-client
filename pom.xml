@@ -120,15 +120,19 @@
             <artifactId>wildfly-naming-client</artifactId>
             <version>${version.org.wildfly.naming-client}</version>
         </dependency>
+
         <dependency>
             <groupId>org.jboss.spec.javax.resource</groupId>
             <artifactId>jboss-connector-api_1.7_spec</artifactId>
             <version>1.0.0.Final</version>
+            <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.kohsuke.metainf-services</groupId>
             <artifactId>metainf-services</artifactId>
             <version>${version.org.kohsuke.metainf-services}</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>
