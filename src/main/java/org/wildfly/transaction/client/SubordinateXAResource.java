@@ -43,7 +43,8 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     public void start(final Xid xid, final int flags) throws XAException {
-        // no operation
+        // ensure that the timeout is registered
+        lookup(xid);
     }
 
     public void end(final Xid xid, final int flags) throws XAException {
@@ -77,7 +78,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private SubordinateTransactionControl lookup(final Xid xid) throws XAException {
         final RemoteTransactionProvider provider = getProvider();
-        return provider.getPeerHandleForXa(location).lookupXid(xid);
+        return provider.getPeerHandleForXa(location).lookupXid(xid, timeout);
     }
 
     private RemoteTransactionProvider getProvider() {

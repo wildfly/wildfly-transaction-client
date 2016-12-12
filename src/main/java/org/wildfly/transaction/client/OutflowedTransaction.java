@@ -191,8 +191,6 @@ final class OutflowedTransaction {
                             }
                         }
                     } while (! enlistmentState.compareAndSet(oldVal, newVal));
-                    // now try to actually propagate the before-completion message to the resource
-
                 }
 
                 public void afterCompletion(final int status) {

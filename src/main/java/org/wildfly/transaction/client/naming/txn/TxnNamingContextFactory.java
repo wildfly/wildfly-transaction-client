@@ -23,7 +23,6 @@ import javax.naming.NamingException;
 
 import org.wildfly.naming.client.NamingContextFactory;
 import org.wildfly.naming.client.NamingProvider;
-import org.wildfly.naming.client.remote.RemoteNamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
 
 /**
@@ -35,9 +34,6 @@ class TxnNamingContextFactory implements NamingContextFactory {
     }
 
     public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) throws NamingException {
-        if (namingProvider instanceof RemoteNamingProvider) {
-            
-        }
         return new TxnNamingContext(namingProvider, env);
     }
 }

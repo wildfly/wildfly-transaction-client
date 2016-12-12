@@ -45,6 +45,7 @@ import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
 import org.wildfly.common.Assert;
+import org.wildfly.common.annotation.NotNull;
 import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
@@ -85,10 +86,12 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         return location;
     }
 
-    public SubordinateTransactionControl lookupXid(final Xid xid) throws XAException {
-        return getSubordinateTransaction(xid, 0);
+    @NotNull
+    public SubordinateTransactionControl lookupXid(final Xid xid, final int remainingTimeout) throws XAException {
+        return getSubordinateTransaction(xid, remainingTimeout);
     }
 
+    @NotNull
     public SimpleTransactionControl begin(final int timeout) throws SystemException {
         int id;
         final ThreadLocalRandom random = ThreadLocalRandom.current();
@@ -144,6 +147,7 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         }
     }
 
+    @NotNull
     public Xid[] recover(final int flag) throws XAException {
         if (flag != XAResource.TMSTARTRSCAN) {
             return SimpleXid.NO_XIDS;
@@ -204,11 +208,11 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         return invocationTracker;
     }
 
-    static TransactionClientChannel forConnection(final Connection connection) throws IOException {
+    static RemoteTransactionPeer forConnection(final Connection connection) throws IOException {
         return CLIENT_SERVICE_HANDLE.getClientService(connection, OptionMap.EMPTY).get();
     }
 
-    static TransactionClientChannel forUri(final URI uri) throws IOException {
+    static RemoteTransactionPeer forUri(final URI uri) throws IOException {
         final Endpoint endpoint = Endpoint.getCurrent();
         final IoFuture<Connection> future = endpoint.getConnection(uri);
         final Connection connection = future.get();

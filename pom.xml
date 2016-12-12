@@ -44,9 +44,9 @@
         <version.org.jboss.spec.javax.transaction>1.0.0.Final</version.org.jboss.spec.javax.transaction>
         <version.org.jboss.xnio>3.2.0.Final</version.org.jboss.xnio>
         <version.org.kohsuke.metainf-services>1.7</version.org.kohsuke.metainf-services>
-        <version.org.wildfly.common>1.2.0.Beta1</version.org.wildfly.common>
+        <version.org.wildfly.common>1.2.0.Beta2</version.org.wildfly.common>
         <version.org.wildfly.elytron>1.1.0.Beta5</version.org.wildfly.elytron>
-        <version.org.wildfly.naming-client>1.0.0.Beta2</version.org.wildfly.naming-client>
+        <version.org.wildfly.naming-client>1.0.0.Beta6</version.org.wildfly.naming-client>
 
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
