@@ -92,6 +92,10 @@ public interface SimpleTransactionControl {
             public void rollback() throws SecurityException, SystemException {
                 transaction.rollback();
             }
+
+            public void setRollbackOnly() throws SystemException {
+                transaction.setRollbackOnly();
+            }
         };
     }
 }

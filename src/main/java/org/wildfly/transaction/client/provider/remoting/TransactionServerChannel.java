@@ -922,7 +922,9 @@ final class TransactionServerChannel {
                     throw log.transactionTimedOut(XAException.XA_RBTIMEOUT);
                 }
                 // don't set if there's an exception on import
-                return this.transaction = importer.beginImported(xid, max(1, timeout - (int) min((long) Integer.MAX_VALUE, elapsed)));
+                final XAImporter.ImportResult result = importer.findOrImportTransaction(xid, max(1, timeout - (int) min((long) Integer.MAX_VALUE, elapsed)));
+                // TODO
+                return this.transaction = result.getTransaction();
             }
         }
     }

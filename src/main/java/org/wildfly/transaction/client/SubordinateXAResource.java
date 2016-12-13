@@ -18,8 +18,12 @@
 
 package org.wildfly.transaction.client;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
 import java.io.Serializable;
 import java.net.URI;
+import java.util.function.Function;
 
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
@@ -37,6 +41,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private final URI location;
     private volatile int timeout;
+    private long startTime = 0L;
 
     SubordinateXAResource(final URI location) {
         this.location = location;
@@ -44,6 +49,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     public void start(final Xid xid, final int flags) throws XAException {
         // ensure that the timeout is registered
+        startTime = System.nanoTime();
         lookup(xid);
     }
 
@@ -78,11 +84,19 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private SubordinateTransactionControl lookup(final Xid xid) throws XAException {
         final RemoteTransactionProvider provider = getProvider();
+        final int configuredTimeout = this.timeout;
+        int timeout;
+        if (configuredTimeout == 0) {
+            timeout = 0;
+        } else {
+            // the remaining timeout is equal to the configured timeout minus the time since start() was called, but no less than 1
+            timeout = (int) min(max(1L, max(0L, System.nanoTime() - startTime) - configuredTimeout * 1_000_000L), Integer.MAX_VALUE);
+        }
         return provider.getPeerHandleForXa(location).lookupXid(xid, timeout);
     }
 
     private RemoteTransactionProvider getProvider() {
-        return RemoteTransactionContext.getContextManager().get().getProvider(location);
+        return RemoteTransactionContext.getContextManager().get().getProvider(location, Function.identity());
     }
 
     public Xid[] recover(final int flag) throws XAException {

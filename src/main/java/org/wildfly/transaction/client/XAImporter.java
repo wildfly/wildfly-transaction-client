@@ -24,6 +24,9 @@ import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
+import org.wildfly.common.Assert;
+import org.wildfly.common.annotation.NotNull;
+
 /**
  * The API which must be implemented by transaction providers that support transaction inflow.
  *
@@ -31,14 +34,26 @@ import javax.transaction.xa.Xid;
  */
 public interface XAImporter extends XATerminator, XARecoverable {
     /**
-     * Import a transaction.
+     * Import a transaction.  If the transaction already exists, it should be returned, otherwise a new transaction
+     * should be initiated with the given timeout (in seconds).
      *
      * @param xid the transaction ID (must not be {@code null})
-     * @param timeout the remaining transaction timeout
+     * @param timeout the remaining transaction timeout, or 0 if the default should be used
      * @return the imported transaction (must not be {@code null})
      * @throws XAException if the import failed for some reason
      */
-    Transaction beginImported(Xid xid, int timeout) throws XAException;
+    @NotNull
+    ImportResult findOrImportTransaction(Xid xid, int timeout) throws XAException;
+
+    /**
+     * Find an existing transaction on this system.  If no such transaction exists, {@code null} is returned.  Normally
+     * the transaction is located only by global ID.
+     *
+     * @param xid the XID to search for (must not be {@code null})
+     * @return the transaction object, or {@code null} if the transaction is not known
+     * @throws XAException if the transaction manager failed for some reason
+     */
+    Transaction findExistingTransaction(Xid xid) throws XAException;
 
     /**
      * Perform before-completion processing.
@@ -90,5 +105,43 @@ public interface XAImporter extends XATerminator, XARecoverable {
      * @return the array of recovered XIDs (may be {@link SimpleXid#NO_XIDS}, must not be {@code null})
      * @throws XAException if the operation fails for some reason
      */
+    @NotNull
     Xid[] recover(int flag) throws XAException;
+
+    /**
+     * Class representing the result of a transaction import.
+     */
+    class ImportResult {
+        private final Transaction transaction;
+        private final boolean isNew;
+
+        /**
+         * Construct a new instance.
+         *
+         * @param transaction the new transaction (must not be {@code null})
+         * @param isNew {@code true} if the transaction was just now imported, {@code false} if the transaction already existed
+         */
+        public ImportResult(final Transaction transaction, final boolean isNew) {
+            this.transaction = Assert.checkNotNullParam("transaction", transaction);
+            this.isNew = isNew;
+        }
+
+        /**
+         * Get the transaction.
+         *
+         * @return the transaction (not {@code null})
+         */
+        public Transaction getTransaction() {
+            return transaction;
+        }
+
+        /**
+         * Determine whether this import resulted in a new transaction.
+         *
+         * @return {@code true} if the transaction was new, {@code false} otherwise
+         */
+        public boolean isNew() {
+            return isNew;
+        }
+    }
 }

@@ -30,6 +30,7 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import javax.transaction.RollbackException;
@@ -134,12 +135,7 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
     public <T> T getProviderInterface(URI location, Class<T> clazz) {
         Assert.checkNotNullParam("location", location);
         Assert.checkNotNullParam("clazz", clazz);
-        for (RemoteTransactionProvider provider : providers) {
-            if (provider.supportsScheme(location.getScheme())) {
-                return provider.getProviderInterface(clazz);
-            }
-        }
-        return null;
+        return getProvider(location, p -> p.getProviderInterface(clazz));
     }
 
     /**
@@ -200,10 +196,10 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
         return enlistment.createHandle();
     }
 
-    RemoteTransactionProvider getProvider(final URI location) {
+    <R> R getProvider(final URI location, Function<RemoteTransactionProvider, R> function) {
         for (RemoteTransactionProvider provider : providers) {
             if (provider.supportsScheme(location.getScheme())) {
-                return provider;
+                return function.apply(provider);
             }
         }
         return null;

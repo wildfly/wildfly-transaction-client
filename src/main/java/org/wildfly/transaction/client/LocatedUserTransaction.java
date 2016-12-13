@@ -20,6 +20,7 @@ package org.wildfly.transaction.client;
 
 import java.io.Serializable;
 import java.net.URI;
+import java.util.function.Function;
 
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
@@ -53,7 +54,7 @@ final class LocatedUserTransaction implements UserTransaction, Serializable {
         if (state.status != Status.STATUS_NO_TRANSACTION) {
             throw Log.log.nestedNotSupported();
         }
-        final RemoteTransactionProvider provider = RemoteTransactionContext.getInstancePrivate().getProvider(location);
+        final RemoteTransactionProvider provider = RemoteTransactionContext.getInstancePrivate().getProvider(location, Function.identity());
         if (provider == null) {
             throw Log.log.noProviderForUri(location);
         }

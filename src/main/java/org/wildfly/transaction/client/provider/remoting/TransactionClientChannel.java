@@ -87,11 +87,6 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
     }
 
     @NotNull
-    public SubordinateTransactionControl lookupXid(final Xid xid, final int remainingTimeout) throws XAException {
-        return getSubordinateTransaction(xid, remainingTimeout);
-    }
-
-    @NotNull
     public SimpleTransactionControl begin(final int timeout) throws SystemException {
         int id;
         final ThreadLocalRandom random = ThreadLocalRandom.current();
@@ -104,7 +99,8 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         return handle;
     }
 
-    RemotingSubordinateTransactionControl getSubordinateTransaction(Xid xid, int remainingTimeout) throws XAException {
+    @NotNull
+    public SubordinateTransactionControl lookupXid(final Xid xid, final int remainingTimeout) throws XAException {
         final SimpleXid globalXid = SimpleXid.of(xid).withoutBranch();
         final ThreadLocalRandom random = ThreadLocalRandom.current();
         final IntIndexMap<RemotingRemoteTransaction> map = this.peerTransactionMap;
