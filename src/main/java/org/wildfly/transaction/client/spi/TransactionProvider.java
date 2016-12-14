@@ -16,31 +16,10 @@
  * limitations under the License.
  */
 
-package org.wildfly.transaction.client;
-
-import static org.wildfly.transaction.client.OutflowHandleManager.FL_COMMITTED;
-import static org.wildfly.transaction.client.OutflowHandleManager.FL_CONFIRMED;
-
-import java.io.Serializable;
-import java.net.URI;
+package org.wildfly.transaction.client.spi;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-final class SerializedXAResource implements Serializable {
-    private static final long serialVersionUID = - 575803514182093617L;
-
-    private final URI location;
-
-    SerializedXAResource(final URI location) {
-        this.location = location;
-    }
-
-    URI getLocation() {
-        return location;
-    }
-
-    Object readResolve() {
-        return new SubordinateXAResource(location, FL_COMMITTED | FL_CONFIRMED);
-    }
+public interface TransactionProvider {
 }

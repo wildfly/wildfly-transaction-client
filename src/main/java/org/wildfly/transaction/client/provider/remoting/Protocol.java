@@ -56,26 +56,27 @@ class Protocol {
     // Add capabilities; server only replies with acknowledged capabilities (may be empty) (error not raised on unrecognized)
     public static final int M_CAPABILITY    = 0x00; // P_*
 
-    // Associate a context ID with a GTID, giving an optional timeout (only used if the transaction wasn't seen before)
-    public static final int M_XA_BEGIN      = 0x01; // P_TXN_CONTEXT [ P_SEC_CONTEXT ] P_XID(gtid) [ P_TXN_TIMEOUT ]
-    // TXN_CONTEXT is released (even for error)
-    public static final int M_XA_ROLLBACK   = 0x02; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
-    //
-    public static final int M_XA_PREPARE    = 0x03; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
-    // TXN_CONTEXT is released (even for error)
-    public static final int M_XA_COMMIT     = 0x04; // P_TXN_CONTEXT [ P_SEC_CONTEXT ] [ P_ONE_PHASE ]
-    // TXN_CONTEXT is released (even for error)
-    public static final int M_XA_FORGET     = 0x05; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
-    // Before-completion callback for synchronizations
-    public static final int M_XA_BEFORE     = 0x06; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
-    //
+    // unused                               = 0x01
+    // Roll back the transaction with the given XID
+    public static final int M_XA_ROLLBACK   = 0x02; // P_XID(gtid) [ P_SEC_CONTEXT ]
+    // Prepare the transaction with the given XID
+    public static final int M_XA_PREPARE    = 0x03; // P_XID(gtid) [ P_SEC_CONTEXT ]
+    // Commit the transaction with the given XID
+    public static final int M_XA_COMMIT     = 0x04; // P_XID(gtid) [ P_SEC_CONTEXT ] [ P_ONE_PHASE ]
+    // Forget the transaction with the given XID
+    public static final int M_XA_FORGET     = 0x05; // P_XID(gtid) [ P_SEC_CONTEXT ]
+    // Execute before-completion for the transaction with the given XID
+    public static final int M_XA_BEFORE     = 0x06; // P_XID(gtid) [ P_SEC_CONTEXT ]
+    // Get a list of XIDs to recover
     public static final int M_XA_RECOVER    = 0x07; // [ P_SEC_CONTEXT ]
-    // Associate a context ID with an anonymous transaction, giving an optional timeout (rolled back on disconnect)
-    public static final int M_UT_BEGIN      = 0x08; // P_TXN_CONTEXT [ P_SEC_CONTEXT ] [ P_TXN_TIMEOUT ]
+    // Mark the XA transaction as rollback-only; used if the resource was called with TMFAIL
+    public static final int M_XA_RB_ONLY    = 0x08; // P_XID(gtid) [ P_SEC_CONTEXT ]
+    // Unused
+    // unused                               = 0x09;
     // TXN_CONTEXT is released (even for error)
-    public static final int M_UT_COMMIT     = 0x09; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
+    public static final int M_UT_COMMIT     = 0x0A; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
     // TXN_CONTEXT is released (even for error)
-    public static final int M_UT_ROLLBACK   = 0x0A; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
+    public static final int M_UT_ROLLBACK   = 0x0B; // P_TXN_CONTEXT [ P_SEC_CONTEXT ]
 
     // server -> client
 

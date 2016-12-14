@@ -27,20 +27,13 @@ class ReadOnlyBinding extends Binding {
 
     private static final long serialVersionUID = 613145972402574684L;
 
-    public ReadOnlyBinding(final String name, final Object obj) {
-        super(name, obj);
-    }
-
-    public ReadOnlyBinding(final String name, final Object obj, final boolean isRelative) {
-        super(name, obj, isRelative);
-    }
-
-    public ReadOnlyBinding(final String name, final String className, final Object obj) {
+    ReadOnlyBinding(final String name, final String className, final Object obj, final String nameInNamespace) {
         super(name, className, obj);
+        super.setNameInNamespace(nameInNamespace);
     }
 
-    public ReadOnlyBinding(final String name, final String className, final Object obj, final boolean isRelative) {
-        super(name, className, obj, isRelative);
+    public void setRelative(final boolean r) {
+        // ignored
     }
 
     public void setObject(final Object obj) {

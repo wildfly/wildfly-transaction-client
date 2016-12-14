@@ -16,31 +16,27 @@
  * limitations under the License.
  */
 
-package org.wildfly.transaction.client;
+package org.wildfly.transaction.client.provider.remoting;
 
-import static org.wildfly.transaction.client.OutflowHandleManager.FL_COMMITTED;
-import static org.wildfly.transaction.client.OutflowHandleManager.FL_CONFIRMED;
+import java.io.IOException;
 
-import java.io.Serializable;
-import java.net.URI;
+import org.jboss.remoting3.Connection;
+import org.jboss.remoting3.ServiceNotFoundException;
+import org.wildfly.common.annotation.NotNull;
 
 /**
+ * A fallback peer provider for compatibility with the old EJB-based transactions protocol.
+ *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-final class SerializedXAResource implements Serializable {
-    private static final long serialVersionUID = - 575803514182093617L;
-
-    private final URI location;
-
-    SerializedXAResource(final URI location) {
-        this.location = location;
-    }
-
-    URI getLocation() {
-        return location;
-    }
-
-    Object readResolve() {
-        return new SubordinateXAResource(location, FL_COMMITTED | FL_CONFIRMED);
-    }
+public interface RemotingFallbackPeerProvider {
+    /**
+     * Get an alternative operations handler for the given connection.
+     *
+     * @param connection the connection (not {@code null})
+     * @return the operations handler (must not be {@code null})
+     * @throws ServiceNotFoundException if the fallback service wasn't located
+     */
+    @NotNull
+    RemotingOperations getOperations(@NotNull Connection connection) throws IOException;
 }

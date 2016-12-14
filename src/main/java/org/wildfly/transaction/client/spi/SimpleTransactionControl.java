@@ -96,6 +96,19 @@ public interface SimpleTransactionControl {
             public void setRollbackOnly() throws SystemException {
                 transaction.setRollbackOnly();
             }
+
+            public <T> T getProviderInterface(final Class<T> providerInterfaceType) {
+                return providerInterfaceType.isInstance(transaction) ? providerInterfaceType.cast(transaction) : null;
+            }
         };
     }
+
+    /**
+     * Get a provider-specific interface from this transaction controller.
+     *
+     * @param providerInterfaceType the provider interface type class (must not be {@code null})
+     * @param <T> the provider interface type
+     * @return the provider interface, or {@code null} if the given type isn't supported by this transaction's provider
+     */
+    <T> T getProviderInterface(Class<T> providerInterfaceType);
 }

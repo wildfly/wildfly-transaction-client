@@ -17,19 +17,24 @@
  */
 package org.wildfly.transaction.client.naming.txn;
 
-import java.net.URI;
+import java.util.Arrays;
 import java.util.Collections;
 
 import javax.naming.Binding;
 import javax.naming.Name;
 import javax.naming.NameClassPair;
 import javax.naming.NamingException;
+import javax.transaction.TransactionManager;
+import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.UserTransaction;
 
 import org.wildfly.naming.client.AbstractContext;
 import org.wildfly.naming.client.CloseableNamingEnumeration;
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
+import org.wildfly.transaction.client.ContextTransactionManager;
+import org.wildfly.transaction.client.ContextTransactionSynchronizationRegistry;
+import org.wildfly.transaction.client.LocalUserTransaction;
 import org.wildfly.transaction.client.RemoteTransactionContext;
 
 /**
@@ -37,26 +42,39 @@ import org.wildfly.transaction.client.RemoteTransactionContext;
  */
 class TxnNamingContext extends AbstractContext {
 
+    private static final String TRANSACTION_MANAGER = "TransactionManager";
+    private static final String USER_TRANSACTION = "UserTransaction";
+    private static final String TRANSACTION_SYNCHRONIZATION_REGISTRY = "TransactionSynchronizationRegistry";
     private final NamingProvider namingProvider;
 
     TxnNamingContext(final NamingProvider namingProvider, final FastHashtable<String, Object> env) {
         this.namingProvider = namingProvider;
     }
 
-    private UserTransaction getUserTransaction() {
-        return RemoteTransactionContext.getInstance().getUserTransaction(namingProvider.getProviderUri());
-    }
-
     protected Object lookupNative(final Name name) throws NamingException {
         final String str = name.get(0);
         switch (str) {
-            case "UserTransaction": {
-                return getUserTransaction();
+            case USER_TRANSACTION: {
+                if (namingProvider != null) {
+                    return getRemoteUserTransaction();
+                } else {
+                    return LocalUserTransaction.getInstance();
+                }
             }
-            default: {
-                throw nameNotFound(name);
+            case TRANSACTION_MANAGER: {
+                if (namingProvider == null) {
+                    return ContextTransactionManager.getInstance();
+                }
+                break;
+            }
+            case TRANSACTION_SYNCHRONIZATION_REGISTRY: {
+                if (namingProvider == null) {
+                    return ContextTransactionSynchronizationRegistry.getInstance();
+                }
+                break;
             }
         }
+        throw nameNotFound(name);
     }
 
     protected Object lookupLinkNative(final Name name) throws NamingException {
@@ -67,22 +85,46 @@ class TxnNamingContext extends AbstractContext {
         if (!name.isEmpty()) {
             throw nameNotFound(name);
         }
-        return CloseableNamingEnumeration.fromIterable(Collections.singleton(getUserTransactionNameClassPair()));
+        return CloseableNamingEnumeration.fromIterable(
+            namingProvider == null ?
+                Arrays.asList(
+                    nameClassPair(UserTransaction.class),
+                    nameClassPair(TransactionManager.class),
+                    nameClassPair(TransactionSynchronizationRegistry.class)
+                ) :
+                Collections.singleton(
+                    nameClassPair(UserTransaction.class)
+                )
+        );
     }
 
     protected CloseableNamingEnumeration<Binding> listBindingsNative(final Name name) throws NamingException {
         if (!name.isEmpty()) {
             throw nameNotFound(name);
         }
-        return CloseableNamingEnumeration.fromIterable(Collections.singleton(getUserTransactionBinding()));
+        return CloseableNamingEnumeration.fromIterable(
+            namingProvider == null ?
+                Arrays.asList(
+                    binding(UserTransaction.class, LocalUserTransaction.getInstance()),
+                    binding(TransactionManager.class, ContextTransactionManager.getInstance()),
+                    binding(TransactionSynchronizationRegistry.class, ContextTransactionSynchronizationRegistry.getInstance())
+                ) :
+                Collections.singleton(
+                    binding(UserTransaction.class, getRemoteUserTransaction())
+                )
+        );
     }
 
-    private Binding getUserTransactionBinding() {
-        return new Binding("UserTransaction", getUserTransaction());
+    private NameClassPair nameClassPair(Class<?> clazz) {
+        return new ReadOnlyNameClassPair(clazz.getSimpleName(), clazz.getName(), "txn:" + clazz.getSimpleName());
     }
 
-    private NameClassPair getUserTransactionNameClassPair() {
-        return new NameClassPair("UserTransaction", UserTransaction.class.getName());
+    private <T> Binding binding(Class<T> clazz, T content) {
+        return new ReadOnlyBinding(clazz.getSimpleName(), clazz.getName(), content, "txn:" + clazz.getSimpleName());
+    }
+
+    private UserTransaction getRemoteUserTransaction() {
+        return RemoteTransactionContext.getInstance().getUserTransaction(namingProvider.getProviderUri());
     }
 
     @Override

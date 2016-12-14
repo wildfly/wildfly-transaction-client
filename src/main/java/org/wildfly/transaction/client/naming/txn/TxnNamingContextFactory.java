@@ -21,14 +21,18 @@ package org.wildfly.transaction.client.naming.txn;
 import javax.naming.Context;
 import javax.naming.NamingException;
 
+import org.kohsuke.MetaInfServices;
 import org.wildfly.naming.client.NamingContextFactory;
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
 
 /**
+ * The naming context factory for transaction service objects.
+ *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-class TxnNamingContextFactory implements NamingContextFactory {
+@MetaInfServices
+public final class TxnNamingContextFactory implements NamingContextFactory {
     public boolean supportsUriScheme(final NamingProvider namingProvider, final String nameScheme) {
         return nameScheme != null && nameScheme.equals("txn");
     }

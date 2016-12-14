@@ -34,11 +34,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import javax.transaction.RollbackException;
-import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
-import javax.transaction.Transaction;
 import javax.transaction.UserTransaction;
-import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.common.context.ContextManager;
@@ -55,9 +52,8 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
 
     private static final RemoteTransactionProvider[] NO_PROVIDERS = new RemoteTransactionProvider[0];
 
-    private final ConcurrentMap<URI, LocatedUserTransaction> userTransactions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<URI, RemoteUserTransaction> userTransactions = new ConcurrentHashMap<>();
     private final List<RemoteTransactionProvider> providers;
-    private final ConcurrentMap<SimpleXid, OutflowedTransaction> outflowedTransactions = new ConcurrentHashMap<>();
 
     /**
      * Construct a new instance.  The given class loader is scanned for transaction providers.
@@ -102,7 +98,7 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
         this.providers = providers;
     }
 
-    private static final ContextManager<RemoteTransactionContext> CONTEXT_MANAGER = new ContextManager<RemoteTransactionContext>(RemoteTransactionContext.class, "wildfly-transaction-client.context");
+    private static final ContextManager<RemoteTransactionContext> CONTEXT_MANAGER = new ContextManager<RemoteTransactionContext>(RemoteTransactionContext.class, "org.wildfly.transaction.client.context.remote");
     private static final Supplier<RemoteTransactionContext> PRIVILEGED_SUPPLIER = doPrivileged((PrivilegedAction<Supplier<RemoteTransactionContext>>) CONTEXT_MANAGER::getPrivilegedSupplier);
 
     /**
@@ -132,12 +128,6 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
         return PRIVILEGED_SUPPLIER.get();
     }
 
-    public <T> T getProviderInterface(URI location, Class<T> clazz) {
-        Assert.checkNotNullParam("location", location);
-        Assert.checkNotNullParam("clazz", clazz);
-        return getProvider(location, p -> p.getProviderInterface(clazz));
-    }
-
     /**
      * Get a {@code UserTransaction} that controls a remote transactions state at the given {@code location}.  The transaction
      * context may cache these instances by location.
@@ -147,59 +137,45 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
      */
     public UserTransaction getUserTransaction(final URI location) {
         Assert.checkNotNullParam("location", location);
-        return userTransactions.computeIfAbsent(location, LocatedUserTransaction::new);
+        return userTransactions.computeIfAbsent(location, RemoteUserTransaction::new);
     }
 
+    private static final Object outflowKey = new Object();
+
     /**
-     * Outflow the current {@code TransactionManager} {@link Transaction} to the given location.  The returned handle
+     * Outflow the given local transaction to the given location.  The returned handle
      * must be used to confirm or forget the enlistment attempt either immediately or at some point in the future;
      * failure to do so may cause the transaction to be rolled back with an error.
      *
      * @param location the location to outflow to (must not be {@code null})
      * @param transaction the transaction (must not be {@code null})
-     * @param xid the transaction XID (must not be {@code null}, the branch qualifier is ignored)
      * @return the enlistment handle (not {@code null})
      * @throws SystemException if the transaction manager fails for some reason
      * @throws RollbackException if the transaction has been rolled back in the meantime
      * @throws IllegalStateException if no transaction is active
      * @throws UnsupportedOperationException if the provider for the location does not support outflow
      */
-    public DelayedEnlistmentHandle outflowTransaction(final URI location, final Transaction transaction, Xid xid) throws SystemException, IllegalStateException, UnsupportedOperationException, RollbackException {
+    public XAOutflowHandle outflowTransaction(final URI location, final LocalTransaction transaction) throws SystemException, IllegalStateException, UnsupportedOperationException, RollbackException {
         Assert.checkNotNullParam("location", location);
         Assert.checkNotNullParam("transaction", transaction);
-        Assert.checkNotNullParam("xid", xid);
-        final SimpleXid globalXid = SimpleXid.of(xid).withoutBranch();
-        final ConcurrentMap<SimpleXid, OutflowedTransaction> outflowedTransactions = this.outflowedTransactions;
-        OutflowedTransaction outflowedTransaction = outflowedTransactions.get(globalXid);
-        if (outflowedTransaction == null) {
-            OutflowedTransaction appearing = outflowedTransactions.putIfAbsent(globalXid, outflowedTransaction = new OutflowedTransaction(globalXid, transaction));
-            if (appearing == null) {
-                final OutflowedTransaction value = outflowedTransaction;
-                // register this to clean up after the transaction is done
-                transaction.registerSynchronization(new Synchronization() {
-                    public void beforeCompletion() {
-                        // no operation
-                    }
 
-                    public void afterCompletion(final int status) {
-                        outflowedTransactions.remove(globalXid, value);
-                    }
-                });
-            } else {
-                outflowedTransaction = appearing;
+        XAOutflowedResources outflowedResources = (XAOutflowedResources) transaction.getResource(outflowKey);
+        if (outflowedResources == null) {
+            synchronized (transaction.getOutflowLock()) {
+                outflowedResources = (XAOutflowedResources) transaction.getResource(outflowKey);
+                if (outflowedResources == null) {
+                    transaction.putResource(outflowKey, outflowedResources = new XAOutflowedResources(transaction));
+                }
             }
         }
-        if (outflowedTransaction.getTransaction() != transaction) {
-            throw Log.log.outflowAcrossTransactionManagers();
-        }
-        final OutflowedTransaction.Enlistment enlistment = outflowedTransaction.getEnlistment(location);
-        return enlistment.createHandle();
+        SubordinateXAResource resource = outflowedResources.getOrEnlist(location);
+        return resource.addHandle(resource.getXid());
     }
 
-    <R> R getProvider(final URI location, Function<RemoteTransactionProvider, R> function) {
+    RemoteTransactionProvider getProvider(final URI location) {
         for (RemoteTransactionProvider provider : providers) {
             if (provider.supportsScheme(location.getScheme())) {
-                return function.apply(provider);
+                return provider;
             }
         }
         return null;

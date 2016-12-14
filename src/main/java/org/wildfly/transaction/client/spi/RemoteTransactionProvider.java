@@ -28,7 +28,7 @@ import javax.transaction.xa.XAException;
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public interface RemoteTransactionProvider {
+public interface RemoteTransactionProvider extends TransactionProvider {
     /**
      * Get a handle for a specific peer.
      *
@@ -63,15 +63,4 @@ public interface RemoteTransactionProvider {
      * @return {@code true} if the scheme is supported, {@code false} otherwise
      */
     boolean supportsScheme(String scheme);
-
-    /**
-     * Get the provider interface with the given type for this peer.
-     *
-     * @param clazz the provider interface type class (must not be {@code null})
-     * @param <T> the provider interface type
-     * @return the provider interface with the given type, or {@code null} if no such interface is supported
-     */
-    default <T> T getProviderInterface(Class<T> clazz) {
-        return null;
-    }
 }

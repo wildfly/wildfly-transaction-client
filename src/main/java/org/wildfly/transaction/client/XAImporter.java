@@ -43,7 +43,7 @@ public interface XAImporter extends XATerminator, XARecoverable {
      * @throws XAException if the import failed for some reason
      */
     @NotNull
-    ImportResult findOrImportTransaction(Xid xid, int timeout) throws XAException;
+    ProviderImportResult findOrImportTransaction(Xid xid, int timeout) throws XAException;
 
     /**
      * Find an existing transaction on this system.  If no such transaction exists, {@code null} is returned.  Normally
@@ -109,9 +109,9 @@ public interface XAImporter extends XATerminator, XARecoverable {
     Xid[] recover(int flag) throws XAException;
 
     /**
-     * Class representing the result of a transaction import.
+     * The result of a transaction import operation.
      */
-    class ImportResult {
+    final class ProviderImportResult {
         private final Transaction transaction;
         private final boolean isNew;
 
@@ -121,7 +121,7 @@ public interface XAImporter extends XATerminator, XARecoverable {
          * @param transaction the new transaction (must not be {@code null})
          * @param isNew {@code true} if the transaction was just now imported, {@code false} if the transaction already existed
          */
-        public ImportResult(final Transaction transaction, final boolean isNew) {
+        public ProviderImportResult(final Transaction transaction, final boolean isNew) {
             this.transaction = Assert.checkNotNullParam("transaction", transaction);
             this.isNew = isNew;
         }

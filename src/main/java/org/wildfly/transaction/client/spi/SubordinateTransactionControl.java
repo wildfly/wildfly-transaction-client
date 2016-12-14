@@ -167,9 +167,26 @@ public interface SubordinateTransactionControl {
     void commit(boolean onePhase) throws XAException;
 
     /**
-     * Get the estimated remaining timeout of the current branch.
-     *
-     * @return the estimated remaining timeout of the current branch
+     * An empty subordinate transaction controller.
      */
-    int getTransactionTimeout() throws XAException;
+    SubordinateTransactionControl EMPTY = new SubordinateTransactionControl() {
+        public void rollback() throws XAException {
+        }
+
+        public void end(final int flags) throws XAException {
+        }
+
+        public void beforeCompletion() throws XAException {
+        }
+
+        public int prepare() throws XAException {
+            return XAResource.XA_RDONLY;
+        }
+
+        public void forget() throws XAException {
+        }
+
+        public void commit(final boolean onePhase) throws XAException {
+        }
+    };
 }
