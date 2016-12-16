@@ -292,4 +292,7 @@ public interface Log extends BasicLogger {
 
     @Message(id = 70, value = "No such transaction")
     XAException noTransactionXa(@Field int errorCode);
+
+    @Message(id = 71, value = "An unexpected failure condition occurred")
+    IllegalStateException unexpectedFailure(@Cause Throwable e);
 }
