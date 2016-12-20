@@ -18,6 +18,13 @@
 
 package org.wildfly.transaction.client.provider.jboss;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import javax.resource.spi.XATerminator;
 import javax.transaction.InvalidTransactionException;
 import javax.transaction.NotSupportedException;
@@ -34,6 +41,7 @@ import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAImporter;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.LocalTransactionProvider;
@@ -44,17 +52,23 @@ import org.wildfly.transaction.client.spi.LocalTransactionProvider;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public final class JBossLocalTransactionProvider implements LocalTransactionProvider {
+    private final int staleTransactionTime;
     private final ExtendedJBossXATerminator ext;
     private final XATerminator xt;
     private final TransactionManager tm;
     private final TransactionSynchronizationRegistry tsr;
     private final XAImporter xi = new XAImporterImpl();
 
-    public JBossLocalTransactionProvider(final XATerminator xt, final ExtendedJBossXATerminator ext, final TransactionManager tm, final TransactionSynchronizationRegistry tsr) {
+    JBossLocalTransactionProvider(final int staleTransactionTime, final XATerminator xt, final ExtendedJBossXATerminator ext, final TransactionManager tm, final TransactionSynchronizationRegistry tsr) {
+        this.staleTransactionTime = staleTransactionTime;
         this.ext = Assert.checkNotNullParam("ext", ext);
         this.xt = Assert.checkNotNullParam("xt", xt);
         this.tm = Assert.checkNotNullParam("tm", tm);
         this.tsr = Assert.checkNotNullParam("tsr", tsr);
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     @NotNull
@@ -128,15 +142,69 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return tsr.getTransactionKey();
     }
 
+    static final class Entry {
+        private final SimpleXid gtid;
+        private final Transaction transaction;
+        private final int timeout;
+        private final long start = System.nanoTime();
+
+        Entry(final SimpleXid gtid, final Transaction transaction, final int timeout) {
+            this.gtid = gtid;
+            this.transaction = transaction;
+            this.timeout = timeout;
+        }
+
+        SimpleXid getGtid() {
+            return gtid;
+        }
+
+        Transaction getTransaction() {
+            return transaction;
+        }
+
+        int getTimeout() {
+            return timeout;
+        }
+
+        long getRemainingNanos() {
+            return max(0L, timeout * 1_000_000_000L - max(0, System.nanoTime() - start));
+        }
+    }
+
     final class XAImporterImpl implements XAImporter {
+        @SuppressWarnings("serial")
+        private final Map<SimpleXid, Entry> knownImported = Collections.synchronizedMap(new LinkedHashMap<SimpleXid, Entry>() {
+            protected boolean removeEldestEntry(final Map.Entry<SimpleXid, Entry> eldest) {
+                return eldest.getValue().getRemainingNanos() == 0L;
+            }
+        });
+
         @NotNull
         public ProviderImportResult findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
+            final SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+            Entry entry = knownImported.get(gtid);
+            if (entry != null) {
+                return new ProviderImportResult(entry.getTransaction(), false);
+            }
             final TransactionImportResult result = ext.importTransaction(xid, timeout);
-            return new ProviderImportResult(result.getTransaction(), result.isNewImportedTransaction());
+            final Transaction transaction = result.getTransaction();
+            knownImported.putIfAbsent(gtid, new Entry(gtid, transaction, min(staleTransactionTime, timeout)));
+            return new ProviderImportResult(transaction, result.isNewImportedTransaction());
         }
 
         public Transaction findExistingTransaction(final Xid xid) throws XAException {
-            return ext.getTransaction(xid);
+            final SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+            Entry entry = knownImported.get(gtid);
+            if (entry != null) {
+                return entry.getTransaction();
+            }
+            final Transaction transaction = ext.getTransaction(xid);
+            if (transaction == null) {
+                return null;
+            }
+            // TODO: get the transaction timeout value, somehow
+            knownImported.putIfAbsent(gtid, new Entry(gtid, transaction, staleTransactionTime));
+            return transaction;
         }
 
         public void beforeComplete(final Xid xid) throws XAException {
@@ -178,6 +246,134 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 throw Log.log.notActiveXA(XAException.XAER_NOTA);
             }
             return importedTransaction;
+        }
+    }
+
+    /**
+     * A builder for a JBoss local transaction provider.
+     */
+    public static final class Builder {
+        private int staleTransactionTime = 600;
+        private ExtendedJBossXATerminator extendedJBossXATerminator;
+        private XATerminator xaTerminator;
+        private TransactionManager transactionManager;
+        private TransactionSynchronizationRegistry transactionSynchronizationRegistry;
+
+        Builder() {
+        }
+
+        /**
+         * Get the stale transaction time, in seconds.
+         *
+         * @return the stale transaction time, in seconds
+         */
+        public int getStaleTransactionTime() {
+            return staleTransactionTime;
+        }
+
+        /**
+         * Set the stale transaction time, in seconds.  The time must be no less than one second.
+         *
+         * @param staleTransactionTime the stale transaction time, in seconds
+         */
+        public Builder setStaleTransactionTime(final int staleTransactionTime) {
+            Assert.checkMinimumParameter("staleTransactionTime", 1, staleTransactionTime);
+            this.staleTransactionTime = staleTransactionTime;
+            return this;
+        }
+
+        /**
+         * Get the extended JBoss XA terminator.
+         *
+         * @return the extended JBoss XA terminator
+         */
+        public ExtendedJBossXATerminator getExtendedJBossXATerminator() {
+            return extendedJBossXATerminator;
+        }
+
+        /**
+         * Set the extended JBoss XA terminator.
+         *
+         * @param ext the extended JBoss XA terminator (must not be {@code null})
+         */
+        public Builder setExtendedJBossXATerminator(final ExtendedJBossXATerminator ext) {
+            Assert.checkNotNullParam("ext", ext);
+            this.extendedJBossXATerminator = ext;
+            return this;
+        }
+
+        /**
+         * Get the XA terminator.
+         *
+         * @return the XA terminator
+         */
+        public XATerminator getXATerminator() {
+            return xaTerminator;
+        }
+
+        /**
+         * Set the XA terminator.
+         *
+         * @param xt the XA terminator (must not be {@code null})
+         */
+        public Builder setXATerminator(final XATerminator xt) {
+            Assert.checkNotNullParam("xt", xt);
+            this.xaTerminator = xt;
+            return this;
+        }
+
+        /**
+         * Get the transaction manager.
+         *
+         * @return the transaction manager
+         */
+        public TransactionManager getTransactionManager() {
+            return transactionManager;
+        }
+
+        /**
+         * Set the transaction manager.
+         *
+         * @param tm the transaction manager
+         */
+        public Builder setTransactionManager(final TransactionManager tm) {
+            Assert.checkNotNullParam("tm", tm);
+            this.transactionManager = tm;
+            return this;
+        }
+
+        /**
+         * Get the transaction synchronization registry.
+         *
+         * @return the transaction synchronization registry
+         */
+        public TransactionSynchronizationRegistry getTransactionSynchronizationRegistry() {
+            return transactionSynchronizationRegistry;
+        }
+
+        /**
+         * Set the transaction synchronization registry.
+         *
+         * @param tsr the transaction synchronization registry
+         */
+        public Builder setTransactionSynchronizationRegistry(final TransactionSynchronizationRegistry tsr) {
+            Assert.checkNotNullParam("tsr", tsr);
+            this.transactionSynchronizationRegistry = tsr;
+            return this;
+        }
+
+        /**
+         * Build this provider.  If any required properties are {@code null}, an exception is thrown.
+         *
+         * @return the built provider (not {@code null})
+         * @throws IllegalArgumentException if a required property is {@code null}
+         */
+        public JBossLocalTransactionProvider build() {
+            Assert.checkNotNullParam("extendedJBossXATerminator", extendedJBossXATerminator);
+            Assert.checkNotNullParam("xaTerminator", xaTerminator);
+            Assert.checkNotNullParam("transactionManager", transactionManager);
+            Assert.checkNotNullParam("transactionSynchronizationRegistry", transactionSynchronizationRegistry);
+            return new JBossLocalTransactionProvider(staleTransactionTime, xaTerminator, extendedJBossXATerminator, transactionManager, transactionSynchronizationRegistry);
         }
     }
 }
