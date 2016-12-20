@@ -28,11 +28,13 @@ import javax.transaction.RollbackException;
 import javax.transaction.Status;
 import javax.transaction.SystemException;
 
+import org.jboss.remoting3.Connection;
 import org.jboss.remoting3.MessageInputStream;
 import org.jboss.remoting3.MessageOutputStream;
 import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
+import org.wildfly.common.Assert;
 import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
@@ -40,11 +42,19 @@ import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-class RemotingRemoteTransactionHandle implements SimpleTransactionControl, RemotingRemoteTransaction {
+class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
 
     private final TransactionClientChannel channel;
-    private final AtomicInteger statusRef = new AtomicInteger(Status.STATUS_NO_TRANSACTION);
+    private final AtomicInteger statusRef = new AtomicInteger(Status.STATUS_ACTIVE);
     private final int id;
+    private final SimpleIdResolver resolver = connection -> {
+        Assert.checkNotNullParam("connection", connection);
+        final URI peerURI = connection.getPeerURI();
+        if (getConnection() != connection) {
+            throw Log.log.invalidTransactionConnection();
+        }
+        return getId();
+    };
 
     RemotingRemoteTransactionHandle(final int id, final TransactionClientChannel channel) {
         this.id = id;
@@ -57,75 +67,6 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl, Remot
 
     public URI getLocation() {
         return channel.getLocation();
-    }
-
-    void begin(int remainingTimeout) throws SystemException {
-        final AtomicInteger statusRef = this.statusRef;
-        int oldVal = statusRef.get();
-        if (oldVal != Status.STATUS_NO_TRANSACTION) {
-            throw Log.log.invalidTxnState();
-        }
-        synchronized (statusRef) {
-            oldVal = statusRef.get();
-            if (oldVal != Status.STATUS_NO_TRANSACTION) {
-                // unlikely
-                throw Log.log.invalidTxnState();
-            }
-            try {
-                final InvocationTracker invocationTracker = channel.getInvocationTracker();
-                final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
-                // write request
-                try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
-                    os.writeShort(invocation.getIndex());
-                    os.writeByte(Protocol.M_UT_BEGIN);
-                    Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
-                    final int peerIdentityId = channel.getConnection().getPeerIdentityId();
-                    if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-                    if (remainingTimeout != 0) Protocol.writeParam(Protocol.P_TXN_TIMEOUT, os, remainingTimeout, Protocol.UNSIGNED);
-                } catch (IOException | AuthenticationException e) {
-                    statusRef.set(Status.STATUS_UNKNOWN);
-                    throw Log.log.failedToSend(e);
-                }
-                try (BlockingInvocation.Response response = invocation.getResponse()) {
-                    try (MessageInputStream is = response.getInputStream()) {
-                        if (is.readUnsignedByte() != Protocol.M_RESP_UT_BEGIN) {
-                            throw Log.log.unknownResponse();
-                        }
-                        int id = is.read();
-                        if (id != -1) do {
-                            // skip content
-                            Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                        } while (is.read() != -1);
-                        if (id == -1) {
-                            statusRef.set(Status.STATUS_ACTIVE);
-                        } else if (id == Protocol.P_UT_IS_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerIllegalStateException();
-                        } else if (id == Protocol.P_UT_SYS_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerSystemException();
-                        } else if (id == Protocol.P_SEC_EXC) {
-                            throw Log.log.peerSecurityException();
-                        } else {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.unknownResponse();
-                        }
-                    } catch (IOException e) {
-                        statusRef.set(Status.STATUS_UNKNOWN);
-                        throw Log.log.responseFailed(e);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    statusRef.set(Status.STATUS_UNKNOWN);
-                    throw Log.log.operationInterrupted();
-                } catch (IOException e) {
-                    // failed to close the response, but we don't care too much
-                    Log.log.outboundException(e);
-                }
-            } finally {
-                statusRef.compareAndSet(Status.STATUS_NO_TRANSACTION, Status.STATUS_UNKNOWN);
-            }
-        }
     }
 
     public void disconnect() {
@@ -307,5 +248,13 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl, Remot
             }
             statusRef.set(Status.STATUS_MARKED_ROLLBACK);
         }
+    }
+
+    public <T> T getProviderInterface(final Class<T> type) {
+        return type.isAssignableFrom(SimpleIdResolver.class) ? type.cast(resolver) : null;
+    }
+
+    Connection getConnection() {
+        return channel.getConnection();
     }
 }

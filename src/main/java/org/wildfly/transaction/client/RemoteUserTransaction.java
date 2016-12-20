@@ -34,72 +34,88 @@ import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 
 /**
- * A remote {@code UserTransaction} which is located on a remote system.
+ * A remote {@code UserTransaction} which controls the transaction state of a remote system.
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-final class LocatedUserTransaction implements UserTransaction, Serializable {
+public final class RemoteUserTransaction implements UserTransaction, Serializable {
     private static final long serialVersionUID = 8612109476723652825L;
 
     private final ThreadLocal<State> stateRef = ThreadLocal.withInitial(State::new);
     private final URI location;
 
-    LocatedUserTransaction(final URI location) {
+    RemoteUserTransaction(final URI location) {
         this.location = location;
     }
 
     public void begin() throws NotSupportedException, SystemException {
-        final State state = stateRef.get();
-        if (state.status != Status.STATUS_NO_TRANSACTION) {
+        final ContextTransactionManager transactionManager = ContextTransactionManager.getInstance();
+        if (transactionManager.getTransaction() != null) {
             throw Log.log.nestedNotSupported();
         }
         final RemoteTransactionProvider provider = RemoteTransactionContext.getInstancePrivate().getProvider(location);
         if (provider == null) {
             throw Log.log.noProviderForUri(location);
         }
-        state.transactionHandle = provider.getPeerHandle(location).begin(state.timeout);
-        state.status = Status.STATUS_ACTIVE;
+        final SimpleTransactionControl control = provider.getPeerHandle(location).begin(transactionManager.getTransactionTimeout());
+        final int timeout = stateRef.get().timeout;
+        transactionManager.resume(new RemoteTransaction(control, location, timeout == 0 ? Integer.MAX_VALUE : timeout));
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
-        final State state = stateRef.get();
-        final int status = state.status;
-        if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
-            state.status = Status.STATUS_NO_TRANSACTION;
-            state.transactionHandle.commit();
-            state.transactionHandle = null;
-        } else {
+        ContextTransactionManager transactionManager = ContextTransactionManager.getInstance();
+        final RemoteTransaction remoteTransaction = getMatchingTransaction();
+        if (remoteTransaction == null) {
             throw Log.log.invalidTxnState();
+        } else {
+            transactionManager.commit();
         }
     }
 
     public void rollback() throws IllegalStateException, SecurityException, SystemException {
-        final State state = stateRef.get();
-        final int status = state.status;
-        if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
-            state.status = Status.STATUS_NO_TRANSACTION;
-            state.transactionHandle.rollback();
-            state.transactionHandle = null;
-        } else {
+        ContextTransactionManager transactionManager = ContextTransactionManager.getInstance();
+        final RemoteTransaction remoteTransaction = getMatchingTransaction();
+        if (remoteTransaction == null) {
             throw Log.log.invalidTxnState();
+        } else {
+            transactionManager.rollback();
         }
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
-        final State state = stateRef.get();
-        final int status = state.status;
-        if (status == Status.STATUS_MARKED_ROLLBACK) {
-            return;
-        } else if (status == Status.STATUS_ACTIVE) {
-            state.status = Status.STATUS_MARKED_ROLLBACK;
-            state.transactionHandle.setRollbackOnly();
-        } else {
+        ContextTransactionManager transactionManager = ContextTransactionManager.getInstance();
+        final RemoteTransaction remoteTransaction = getMatchingTransaction();
+        if (remoteTransaction == null) {
             throw Log.log.noTransaction();
+        } else {
+            transactionManager.setRollbackOnly();
         }
     }
 
     public int getStatus() {
-        return stateRef.get().status;
+        final RemoteTransaction remoteTransaction = getMatchingTransaction();
+        return remoteTransaction == null ? Status.STATUS_NO_TRANSACTION : remoteTransaction.getStatus();
+    }
+
+    /**
+     * Get the location of this object.
+     *
+     * @return the location of this object
+     */
+    public URI getLocation() {
+        return location;
+    }
+
+    RemoteTransaction getMatchingTransaction() {
+        final AbstractTransaction transaction = ContextTransactionManager.getInstance().getTransaction();
+        if (! (transaction instanceof RemoteTransaction)) {
+            return null;
+        }
+        final RemoteTransaction remoteTransaction = (RemoteTransaction) transaction;
+        if (! remoteTransaction.getLocation().equals(location)) {
+            return null;
+        }
+        return remoteTransaction;
     }
 
     public void setTransactionTimeout(final int seconds) throws SystemException {

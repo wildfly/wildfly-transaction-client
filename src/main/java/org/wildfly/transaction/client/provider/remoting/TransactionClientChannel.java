@@ -21,11 +21,8 @@ package org.wildfly.transaction.client.provider.remoting;
 import static org.xnio.IoUtils.safeClose;
 
 import java.io.IOException;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.transaction.SystemException;
@@ -36,7 +33,6 @@ import javax.transaction.xa.Xid;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.ClientServiceHandle;
 import org.jboss.remoting3.Connection;
-import org.jboss.remoting3.Endpoint;
 import org.jboss.remoting3.MessageInputStream;
 import org.jboss.remoting3.MessageOutputStream;
 import org.jboss.remoting3._private.IntIndexHashMap;
@@ -44,13 +40,11 @@ import org.jboss.remoting3._private.IntIndexMap;
 import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
-import org.wildfly.common.Assert;
+import org.wildfly.common.annotation.NotNull;
 import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
-import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
-import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 import org.xnio.FinishedIoFuture;
 import org.xnio.IoFuture;
 import org.xnio.OptionMap;
@@ -58,13 +52,12 @@ import org.xnio.OptionMap;
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-final class TransactionClientChannel implements RemoteTransactionPeer {
+final class TransactionClientChannel implements RemotingOperations {
     private final URI location;
     private final Channel channel;
     private final InvocationTracker invocationTracker;
-    private final IntIndexMap<RemotingRemoteTransaction> peerTransactionMap = new IntIndexHashMap<RemotingRemoteTransaction>(RemotingRemoteTransaction.INDEXER);
+    private final IntIndexMap<RemotingRemoteTransactionHandle> peerTransactionMap = new IntIndexHashMap<RemotingRemoteTransactionHandle>(RemotingRemoteTransactionHandle::getId);
     private final Channel.Receiver receiver = new ReceiverImpl();
-    private final ConcurrentMap<SimpleXid, FutureRemoteSubordinateTransactionControl> subordinates = new ConcurrentHashMap<>();
 
     private static final ClientServiceHandle<TransactionClientChannel> CLIENT_SERVICE_HANDLE = new ClientServiceHandle<>("txn", TransactionClientChannel::construct);
 
@@ -85,65 +78,319 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         return location;
     }
 
-    public SubordinateTransactionControl lookupXid(final Xid xid) throws XAException {
-        return getSubordinateTransaction(xid, 0);
-    }
-
+    @NotNull
     public SimpleTransactionControl begin(final int timeout) throws SystemException {
         int id;
         final ThreadLocalRandom random = ThreadLocalRandom.current();
-        final IntIndexMap<RemotingRemoteTransaction> map = this.peerTransactionMap;
+        final IntIndexMap<RemotingRemoteTransactionHandle> map = this.peerTransactionMap;
         RemotingRemoteTransactionHandle handle;
         do {
             id = random.nextInt();
         } while (map.containsKey(id) || map.putIfAbsent(handle = new RemotingRemoteTransactionHandle(id, this)) != null);
-        handle.begin(timeout);
         return handle;
     }
 
-    RemotingSubordinateTransactionControl getSubordinateTransaction(Xid xid, int remainingTimeout) throws XAException {
-        final SimpleXid globalXid = SimpleXid.of(xid).withoutBranch();
-        final ThreadLocalRandom random = ThreadLocalRandom.current();
-        final IntIndexMap<RemotingRemoteTransaction> map = this.peerTransactionMap;
-        int id;
-        FutureRemoteSubordinateTransactionControl existing;
-        // optimistic result: the transaction control is already there
-        existing = subordinates.get(globalXid);
-        if (existing != null) {
-            return existing.get();
+    public void rollback(final Xid xid) throws XAException {
+        final InvocationTracker invocationTracker = getInvocationTracker();
+        final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
+        // write request
+        try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
+            os.writeShort(invocation.getIndex());
+            os.writeByte(Protocol.M_XA_ROLLBACK);
+            Protocol.writeParam(Protocol.P_XID, os, xid);
+            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+        } catch (IOException | AuthenticationException e) {
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
-        RemotingSubordinateTransactionControl handle;
-        do {
-            id = random.nextInt();
-        } while (map.containsKey(id) || map.putIfAbsent(handle = new RemotingSubordinateTransactionControl(id, this, globalXid, remainingTimeout)) != null);
-        final UnfinishedFutureRemoteSubordinateTransactionControl future = new UnfinishedFutureRemoteSubordinateTransactionControl();
-        synchronized (future) {
-            FutureRemoteSubordinateTransactionControl appearing = subordinates.putIfAbsent(globalXid, future);
-            if (appearing != null) {
-                map.remove(handle);
-                return appearing.get();
-            }
-            // otherwise, publish this transaction to the remote system
-            // this does not actually enlist the transaction though; that's up to the user to decide
-            boolean ok = false;
-            try {
-                handle.begin();
-                future.complete(handle);
-                subordinates.replace(globalXid, future, handle);
-                ok = true;
-            } catch (final Throwable e) {
-                future.fail(e);
-                throw e;
-            } finally {
-                if (! ok) {
-                    subordinates.remove(globalXid, future);
-                    map.remove(handle);
+        try (BlockingInvocation.Response response = invocation.getResponse()) {
+            try (MessageInputStream is = response.getInputStream()) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_ROLLBACK) {
+                    throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
+                int id = is.read();
+                if (id == Protocol.P_XA_ERROR) {
+                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(Log.log.peerXaException(error));
+                        throw ex;
+                    } else {
+                        throw Log.log.protocolErrorXA(error);
+                    }
+                } else if (id == Protocol.P_SEC_EXC) {
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(Log.log.peerSecurityException());
+                        throw ex;
+                    } else {
+                        throw Log.log.peerSecurityException();
+                    }
+                } else if (id != -1) {
+                    throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                }
+            } catch (IOException e) {
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
             }
-            return handle;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Log.log.interruptedXA(XAException.XAER_RMERR);
+        } catch (IOException e) {
+            // failed to close the response, but we don't care too much
+            Log.log.inboundException(e);
         }
     }
 
+    public void setRollbackOnly(final Xid xid) throws XAException {
+        // write rollback-only request
+        final InvocationTracker invocationTracker = getInvocationTracker();
+        final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
+        // write request
+        try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
+            os.writeShort(invocation.getIndex());
+            os.writeByte(Protocol.M_XA_RB_ONLY);
+            Protocol.writeParam(Protocol.P_XID, os, xid);
+            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+        } catch (IOException | AuthenticationException e) {
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+        }
+        try (BlockingInvocation.Response response = invocation.getResponse()) {
+            try (MessageInputStream is = response.getInputStream()) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_ROLLBACK) {
+                    throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
+                }
+                int id = is.read();
+                if (id == Protocol.P_XA_ERROR) {
+                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(Log.log.peerXaException(error));
+                        throw ex;
+                    } else {
+                        throw Log.log.protocolErrorXA(error);
+                    }
+                } else if (id == Protocol.P_SEC_EXC) {
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(Log.log.peerSecurityException());
+                        throw ex;
+                    } else {
+                        throw Log.log.peerSecurityException();
+                    }
+                } else if (id != -1) {
+                    throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                }
+            } catch (IOException e) {
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Log.log.interruptedXA(XAException.XAER_RMERR);
+        } catch (IOException e) {
+            // failed to close the response, but we don't care too much
+            Log.log.inboundException(e);
+        }
+    }
+
+    public void beforeCompletion(final Xid xid) throws XAException {
+        final InvocationTracker invocationTracker = getInvocationTracker();
+        final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
+        // write request
+        try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
+            os.writeShort(invocation.getIndex());
+            os.writeByte(Protocol.M_XA_BEFORE);
+            Protocol.writeParam(Protocol.P_XID, os, xid);
+            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+        } catch (IOException | AuthenticationException e) {
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+        }
+        try (BlockingInvocation.Response response = invocation.getResponse()) {
+            try (MessageInputStream is = response.getInputStream()) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_BEFORE) {
+                    throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
+                }
+                int id = is.read();
+                int error = 0;
+                boolean sec = false;
+                if (id == Protocol.P_XA_ERROR) {
+                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                } else if (id == Protocol.P_SEC_EXC) {
+                    sec = true;
+                }
+                if (id != -1) do {
+                    // skip content
+                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
+                } while (is.read() != -1);
+                if (sec) {
+                    throw Log.log.peerSecurityException();
+                }
+                if (error != 0) {
+                    throw Log.log.peerXaException(error);
+                }
+            } catch (IOException e) {
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Log.log.interruptedXA(XAException.XAER_RMERR);
+        } catch (IOException e) {
+            // failed to close the response, but we don't care too much
+            Log.log.inboundException(e);
+        }
+    }
+
+    public int prepare(final Xid xid) throws XAException {
+        boolean readOnly = false;
+        final InvocationTracker invocationTracker = getInvocationTracker();
+        final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
+        // write request
+        try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
+            os.writeShort(invocation.getIndex());
+            os.writeByte(Protocol.M_XA_PREPARE);
+            Protocol.writeParam(Protocol.P_XID, os, xid);
+            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+        } catch (IOException | AuthenticationException e) {
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+        }
+        try (BlockingInvocation.Response response = invocation.getResponse()) {
+            try (MessageInputStream is = response.getInputStream()) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_PREPARE) {
+                    throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
+                }
+                int id = is.read();
+                int error = 0;
+                boolean sec = false;
+                if (id == Protocol.P_XA_ERROR) {
+                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                } else if (id == Protocol.P_SEC_EXC) {
+                    sec = true;
+                } else if (id == Protocol.P_XA_RDONLY) {
+                    readOnly = true;
+                }
+                if (id != -1) do {
+                    // skip content
+                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
+                } while (is.read() != -1);
+                if (sec) {
+                    throw Log.log.peerSecurityException();
+                }
+                if (error != 0) {
+                    throw Log.log.peerXaException(error);
+                }
+            } catch (IOException e) {
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Log.log.interruptedXA(XAException.XAER_RMERR);
+        } catch (IOException e) {
+            // failed to close the response, but we don't care too much
+            Log.log.inboundException(e);
+        }
+        return readOnly ? XAResource.XA_RDONLY : XAResource.XA_OK;
+    }
+
+    public void forget(final Xid xid) throws XAException {
+        final InvocationTracker invocationTracker = getInvocationTracker();
+        final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
+        // write request
+        try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
+            os.writeShort(invocation.getIndex());
+            os.writeByte(Protocol.M_XA_FORGET);
+            Protocol.writeParam(Protocol.P_XID, os, xid);
+            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+        } catch (IOException | AuthenticationException e) {
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+        }
+        try (BlockingInvocation.Response response = invocation.getResponse()) {
+            try (MessageInputStream is = response.getInputStream()) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_FORGET) {
+                    throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
+                }
+                int id = is.read();
+                int error = 0;
+                boolean sec = false;
+                if (id == Protocol.P_XA_ERROR) {
+                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                } else if (id == Protocol.P_SEC_EXC) {
+                    sec = true;
+                }
+                if (id != -1) do {
+                    // skip content
+                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
+                } while (is.read() != -1);
+                if (sec) {
+                    throw Log.log.peerSecurityException();
+                }
+                if (error != 0) {
+                    throw Log.log.peerXaException(error);
+                }
+            } catch (IOException e) {
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Log.log.interruptedXA(XAException.XAER_RMERR);
+        } catch (IOException e) {
+            // failed to close the response, but we don't care too much
+            Log.log.inboundException(e);
+        }
+    }
+
+    public void commit(final Xid xid, final boolean onePhase) throws XAException {
+        final InvocationTracker invocationTracker = getInvocationTracker();
+        final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
+        // write request
+        try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
+            os.writeShort(invocation.getIndex());
+            os.writeByte(Protocol.M_XA_COMMIT);
+            Protocol.writeParam(Protocol.P_XID, os, xid);
+            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+            if (onePhase) Protocol.writeParam(Protocol.P_ONE_PHASE, os);
+        } catch (IOException | AuthenticationException e) {
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+        }
+        try (BlockingInvocation.Response response = invocation.getResponse()) {
+            try (MessageInputStream is = response.getInputStream()) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_COMMIT) {
+                    throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
+                }
+                int id = is.read();
+                int error = 0;
+                boolean sec = false;
+                if (id == Protocol.P_XA_ERROR) {
+                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                } else if (id == Protocol.P_SEC_EXC) {
+                    sec = true;
+                }
+                if (id != -1) do {
+                    // skip content
+                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
+                } while (is.read() != -1);
+                if (sec) {
+                    throw Log.log.peerSecurityException();
+                }
+                if (error != 0) {
+                    throw Log.log.peerXaException(error);
+                }
+            } catch (IOException e) {
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw Log.log.interruptedXA(XAException.XAER_RMERR);
+        } catch (IOException e) {
+            // failed to close the response, but we don't care too much
+            Log.log.inboundException(e);
+        }
+    }
+
+    @NotNull
     public Xid[] recover(final int flag) throws XAException {
         if (flag != XAResource.TMSTARTRSCAN) {
             return SimpleXid.NO_XIDS;
@@ -208,13 +455,6 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         return CLIENT_SERVICE_HANDLE.getClientService(connection, OptionMap.EMPTY).get();
     }
 
-    static TransactionClientChannel forUri(final URI uri) throws IOException {
-        final Endpoint endpoint = Endpoint.getCurrent();
-        final IoFuture<Connection> future = endpoint.getConnection(uri);
-        final Connection connection = future.get();
-        return TransactionClientChannel.forConnection(connection);
-    }
-
     Channel.Receiver getReceiver() {
         return receiver;
     }
@@ -223,50 +463,13 @@ final class TransactionClientChannel implements RemoteTransactionPeer {
         return channel.getConnection();
     }
 
-    static class UnfinishedFutureRemoteSubordinateTransactionControl extends FutureRemoteSubordinateTransactionControl {
-        private volatile Object result;
-
-        RemotingSubordinateTransactionControl get() throws XAException {
-            Object result = this.result;
-            if (result == null) {
-                synchronized (this) {
-                    result = this.result;
-                }
-                Assert.assertNotNull(result);
-            }
-            if (result instanceof RemotingSubordinateTransactionControl) {
-                return (RemotingSubordinateTransactionControl) result;
-            } else if (result instanceof Throwable) {
-                try {
-                    throw (Throwable) result;
-                } catch (XAException | RuntimeException | Error e) {
-                    throw e;
-                } catch (Throwable throwable) {
-                    throw new UndeclaredThrowableException(throwable);
-                }
-            } else {
-                throw Assert.unreachableCode();
-            }
-        }
-
-        void complete(final RemotingSubordinateTransactionControl handle) {
-            Assert.assertHoldsLock(this);
-            result = handle;
-        }
-
-        void fail(final Throwable throwable) {
-            Assert.assertHoldsLock(this);
-            result = throwable;
-        }
-    }
-
     class ReceiverImpl implements Channel.Receiver {
         public void handleError(final Channel channel, final IOException error) {
             handleEnd(channel);
         }
 
         public void handleEnd(final Channel channel) {
-            for (RemotingRemoteTransaction transaction : peerTransactionMap) {
+            for (RemotingRemoteTransactionHandle transaction : peerTransactionMap) {
                 transaction.disconnect();
             }
         }

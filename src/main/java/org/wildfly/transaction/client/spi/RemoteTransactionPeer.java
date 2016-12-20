@@ -22,6 +22,8 @@ import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
 
+import org.wildfly.common.annotation.NotNull;
+
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
@@ -33,10 +35,12 @@ public interface RemoteTransactionPeer {
      * usually be empty in any event).
      *
      * @param xid the transaction ID
+     * @param remainingTimeout the remaining timeout of the transaction, in seconds (0 indicates that the default should be used)
      * @return the handle for the remote transaction
      * @throws XAException if the lookup failed for some reason
      */
-    SubordinateTransactionControl lookupXid(Xid xid) throws XAException;
+    @NotNull
+    SubordinateTransactionControl lookupXid(Xid xid, int remainingTimeout) throws XAException;
 
     /**
      * Acquire a list of all unresolved subordinate transactions from the location associated with this provider.
@@ -45,6 +49,7 @@ public interface RemoteTransactionPeer {
      * @return the (possibly empty) XID array
      * @throws XAException if an error occurs
      */
+    @NotNull
     Xid[] recover(int flag) throws XAException;
 
     /**
@@ -54,6 +59,7 @@ public interface RemoteTransactionPeer {
      * @return the transaction handle (must not be {@code null})
      * @throws SystemException if an unexpected error occurs
      */
+    @NotNull
     SimpleTransactionControl begin(int timeout) throws SystemException;
 
     /**

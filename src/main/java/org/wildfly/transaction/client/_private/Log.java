@@ -85,8 +85,8 @@ public interface Log extends BasicLogger {
     @Message(id = 1, value = "A transaction is already in progress")
     NotSupportedException nestedNotSupported();
 
-    @Message(id = 2, value = "Transaction is not a ClientTransaction instance: %s")
-    InvalidTransactionException notClientTransaction(Transaction transaction);
+    @Message(id = 2, value = "Transaction is not a supported instance: %s")
+    InvalidTransactionException notSupportedTransaction(Transaction transaction);
 
     @Message(id = 3, value = "Invalid transaction location URI (must be absolute): %s")
     IllegalArgumentException invalidTransactionLocationUri(URI uri);
@@ -262,4 +262,37 @@ public interface Log extends BasicLogger {
 
     @Message(id = 60, value = "Transaction timed out")
     XAException transactionTimedOut(@Field int errorCode);
+
+    @Message(id = 61, value = "Transaction is marked rollback-only")
+    RollbackException markedRollbackOnly();
+
+    @Message(id = 62, value = "Transaction is not active")
+    IllegalStateException notActive();
+
+    @Message(id = 63, value = "Provider created a null transaction")
+    IllegalStateException providerCreatedNullTransaction();
+
+    @Message(id = 64, value = "Invalid connection endpoint provided")
+    IllegalArgumentException invalidConnectionEndpoint();
+
+    @Message(id = 65, value = "No transaction for ID %d")
+    SystemException noTransactionForId(int id);
+
+    @Message(id = 66, value = "Failed to set transaction as rollback-only")
+    XAException rollbackOnlyFailed(@Field int errorCode, @Cause SystemException e);
+
+    @Message(id = 67, value = "Transaction is not active")
+    XAException notActiveXA(@Field int errorCode);
+
+    @Message(id = 68, value = "Subordinate enlistment failed for unknown reason")
+    SystemException couldNotEnlist();
+
+    @Message(id = 69, value = "Connection does not match the transaction; the connection may have closed")
+    InvalidTransactionException invalidTransactionConnection();
+
+    @Message(id = 70, value = "No such transaction")
+    XAException noTransactionXa(@Field int errorCode);
+
+    @Message(id = 71, value = "An unexpected failure condition occurred")
+    IllegalStateException unexpectedFailure(@Cause Throwable e);
 }

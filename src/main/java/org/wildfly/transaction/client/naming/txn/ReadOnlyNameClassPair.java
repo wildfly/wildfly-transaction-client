@@ -16,18 +16,34 @@
  * limitations under the License.
  */
 
-package org.wildfly.transaction.client.provider.remoting;
+package org.wildfly.transaction.client.naming.txn;
 
-import java.util.function.ToIntFunction;
+import javax.naming.NameClassPair;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-interface RemotingRemoteTransaction {
+class ReadOnlyNameClassPair extends NameClassPair {
+    private static final long serialVersionUID = - 999811232400176846L;
 
-    ToIntFunction<RemotingRemoteTransaction> INDEXER = RemotingRemoteTransaction::getId;
+    ReadOnlyNameClassPair(final String name, final String className, final String nameInNamespace) {
+        super(name, className);
+        super.setNameInNamespace(nameInNamespace);
+    }
 
-    int getId();
+    public void setName(final String name) {
+        // ignored
+    }
 
-    void disconnect();
+    public void setClassName(final String name) {
+        // ignored
+    }
+
+    public void setRelative(final boolean r) {
+        // ignored
+    }
+
+    public void setNameInNamespace(final String fullName) {
+        // ignored
+    }
 }

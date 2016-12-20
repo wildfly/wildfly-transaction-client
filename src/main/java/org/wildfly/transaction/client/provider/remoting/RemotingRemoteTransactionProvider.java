@@ -18,13 +18,15 @@
 
 package org.wildfly.transaction.client.provider.remoting;
 
-import java.io.IOException;
 import java.net.URI;
+import java.util.Iterator;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 
 import javax.transaction.SystemException;
+
 import org.jboss.remoting3.Endpoint;
 import org.kohsuke.MetaInfServices;
-import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 
@@ -34,11 +36,26 @@ import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 @MetaInfServices
-public final class RemotingTransactionProvider implements RemoteTransactionProvider {
+public final class RemotingRemoteTransactionProvider implements RemoteTransactionProvider {
     private final Endpoint endpoint;
+    private final RemotingFallbackPeerProvider fallbackProvider;
 
-    RemotingTransactionProvider() {
+    /**
+     * Construct a new instance.
+     */
+    public RemotingRemoteTransactionProvider() {
         this.endpoint = Endpoint.getCurrent();
+        ServiceLoader<RemotingFallbackPeerProvider> loader = ServiceLoader.load(RemotingFallbackPeerProvider.class, RemotingRemoteTransactionProvider.class.getClassLoader());
+        final Iterator<RemotingFallbackPeerProvider> iterator = loader.iterator();
+        RemotingFallbackPeerProvider fallbackProvider = null;
+        for (;;) try {
+            if (! iterator.hasNext()) {
+                break;
+            }
+            fallbackProvider = iterator.next();
+            break;
+        } catch (ServiceConfigurationError e) {}
+        this.fallbackProvider = fallbackProvider;
     }
 
     public boolean supportsScheme(final String scheme) {
@@ -46,17 +63,6 @@ public final class RemotingTransactionProvider implements RemoteTransactionProvi
     }
 
     public RemoteTransactionPeer getPeerHandle(final URI location) throws SystemException {
-        try {
-            return getPeerHandleDirect(location);
-        } catch (IOException e) {
-            throw Log.log.connectionFailed(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw Log.log.connectionInterrupted();
-        }
-    }
-
-    RemoteTransactionPeer getPeerHandleDirect(final URI location) throws IOException, InterruptedException {
-        return TransactionClientChannel.forConnection(endpoint.getConnection(location).getInterruptibly());
+        return new RemotingRemoteTransactionPeer(location, endpoint, fallbackProvider);
     }
 }
