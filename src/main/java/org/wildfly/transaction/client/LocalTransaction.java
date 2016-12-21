@@ -20,6 +20,7 @@ package org.wildfly.transaction.client;
 
 import javax.transaction.*;
 import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client._private.Log;
@@ -32,10 +33,12 @@ import org.wildfly.transaction.client._private.Log;
 public final class LocalTransaction extends AbstractTransaction {
     private final LocalTransactionContext owner;
     private final Transaction transaction;
+    private final Xid importXid;
 
-    LocalTransaction(final LocalTransactionContext owner, final Transaction transaction) {
+    LocalTransaction(final LocalTransactionContext owner, final Transaction transaction, final Xid importXid) {
         this.owner = owner;
         this.transaction = transaction;
+        this.importXid = importXid;
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
@@ -73,6 +76,16 @@ public final class LocalTransaction extends AbstractTransaction {
     public void registerSynchronization(final Synchronization sync) throws RollbackException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("sync", sync);
         transaction.registerSynchronization(sync);
+    }
+
+    /**
+     * Get the name of the node which initiated the transaction.
+     *
+     * @return the name of the node which initiated the transaction, or {@code null} if it could not be determined
+     */
+    public String getParentName() {
+        final Xid xid = this.importXid;
+        return xid == null ? owner.getProvider().getNodeName() : owner.getProvider().getNameFromXid(xid);
     }
 
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {

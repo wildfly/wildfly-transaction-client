@@ -190,7 +190,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        final Txn txn = server.getTxnMap().removeKey(context);
+        final LocalTxn txn = server.getTxnMap().removeKey(context);
         if (txn == null) {
             writeParamError(invId);
             return;
@@ -245,7 +245,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        final Txn txn = server.getTxnMap().removeKey(context);
+        final LocalTxn txn = server.getTxnMap().removeKey(context);
         if (txn == null) {
             writeParamError(invId);
             return;
@@ -567,13 +567,18 @@ final class TransactionServerChannel {
         int param;
         int len;
         int secContext = 0;
+        String parentName = null;
         boolean hasSecContext = false;
         while ((param = message.read()) != - 1) {
             len = StreamUtils.readPackedUnsignedInt32(message);
             switch (param) {
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
+                    break;
+                }
+                case P_PARENT_NAME: {
+                    parentName = readStringParam(message, len);
                     break;
                 }
                 default: {
@@ -588,12 +593,13 @@ final class TransactionServerChannel {
         } else {
             securityIdentity = channel.getConnection().getLocalIdentity();
         }
+        final String finalParentName = parentName;
         securityIdentity.runAs(() -> {
             final XARecoverable recoverable = localTransactionContext.getRecoveryInterface();
             Xid[] xids;
             try {
                 // get the first batch
-                xids = recoverable.recover(XAResource.TMSTARTRSCAN);
+                xids = recoverable.recover(XAResource.TMSTARTRSCAN, finalParentName);
             } catch (XAException e) {
                 writeXaExceptionResponse(M_RESP_XA_RECOVER, invId, e.errorCode);
                 return;
@@ -616,11 +622,11 @@ final class TransactionServerChannel {
                     }
                     if (added) try {
                         // get the next batch
-                        xids = recoverable.recover(XAResource.TMNOFLAGS);
+                        xids = recoverable.recover(XAResource.TMNOFLAGS, finalParentName);
                     } catch (XAException e) {
                         writeParam(P_XA_ERROR, outputStream, e.errorCode, SIGNED);
                         try {
-                            recoverable.recover(XAResource.TMENDRSCAN);
+                            recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
                         } catch (XAException e1) {
                             // ignored
                             log.recoverySuppressedException(e1);
@@ -629,7 +635,7 @@ final class TransactionServerChannel {
                     }
                 } while (xids.length > 0 && added);
                 try {
-                    xids = recoverable.recover(XAResource.TMENDRSCAN);
+                    xids = recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
                 } catch (XAException e) {
                     writeParam(P_XA_ERROR, outputStream, e.errorCode, SIGNED);
                     return;

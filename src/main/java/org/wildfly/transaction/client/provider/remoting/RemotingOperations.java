@@ -40,7 +40,7 @@ public interface RemotingOperations {
 
     void beforeCompletion(Xid xid) throws XAException;
 
-    Xid[] recover(int flag) throws XAException;
+    Xid[] recover(int flag, String parentName) throws XAException;
 
     SimpleTransactionControl begin(int timeout) throws SystemException;
 }

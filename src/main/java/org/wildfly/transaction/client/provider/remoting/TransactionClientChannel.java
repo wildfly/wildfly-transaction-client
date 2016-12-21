@@ -391,7 +391,7 @@ final class TransactionClientChannel implements RemotingOperations {
     }
 
     @NotNull
-    public Xid[] recover(final int flag) throws XAException {
+    public Xid[] recover(final int flag, final String parentName) throws XAException {
         if (flag != XAResource.TMSTARTRSCAN) {
             return SimpleXid.NO_XIDS;
         }
@@ -403,6 +403,7 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeByte(Protocol.M_XA_RECOVER);
             final int peerIdentityId = channel.getConnection().getPeerIdentityId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
+            Protocol.writeParam(Protocol.P_PARENT_NAME, os, parentName);
         } catch (IOException | AuthenticationException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }

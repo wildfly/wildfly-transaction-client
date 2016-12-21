@@ -46,11 +46,12 @@ public interface RemoteTransactionPeer {
      * Acquire a list of all unresolved subordinate transactions from the location associated with this provider.
      *
      * @param flag the recovery flag
+     * @param parentName the parent node name
      * @return the (possibly empty) XID array
      * @throws XAException if an error occurs
      */
     @NotNull
-    Xid[] recover(int flag) throws XAException;
+    Xid[] recover(int flag, String parentName) throws XAException;
 
     /**
      * Establish a remote user-controlled transaction without local enlistment.

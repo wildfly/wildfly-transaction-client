@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.xa.XAException;
-import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
@@ -36,7 +35,6 @@ import org.wildfly.common.context.Contextual;
 import org.wildfly.transaction.TransactionPermission;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.LocalTransactionProvider;
-import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 
 /**
  * The local transaction context, which manages the creation and usage of local transactions.
@@ -106,7 +104,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (newTransaction == null) {
             throw Log.log.providerCreatedNullTransaction();
         }
-        return new LocalTransaction(this, newTransaction);
+        return new LocalTransaction(this, newTransaction, null);
     }
 
     /**
@@ -118,45 +116,13 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      * @throws XAException if a problem occurred while importing the transaction
      */
     @NotNull
-    public ImportResult findOrImportTransaction(Xid xid, int timeout) throws XAException {
+    public ImportResult<LocalTransaction> findOrImportTransaction(Xid xid, int timeout) throws XAException {
         Assert.checkNotNullParam("xid", xid);
         Assert.checkMinimumParameter("timeout", 0, timeout);
         XAImporter xaImporter = provider.getXAImporter();
-        final XAImporter.ProviderImportResult result = xaImporter.findOrImportTransaction(xid, timeout);
-        final LocalTransaction transaction = new LocalTransaction(this, result.getTransaction());
-        return new ImportResult(transaction, new SubordinateTransactionControl() {
-            public void rollback() throws XAException {
-                xaImporter.rollback(xid);
-            }
-
-            public void end(final int flags) throws XAException {
-                if (flags == XAResource.TMFAIL) {
-                    try {
-                        transaction.setRollbackOnly();
-                    } catch (IllegalStateException e) {
-                        throw Log.log.notActiveXA(XAException.XAER_INVAL);
-                    } catch (SystemException e) {
-                        throw Log.log.rollbackOnlyFailed(XAException.XAER_RMERR, e);
-                    }
-                }
-            }
-
-            public void beforeCompletion() throws XAException {
-                xaImporter.beforeComplete(xid);
-            }
-
-            public int prepare() throws XAException {
-                return xaImporter.prepare(xid);
-            }
-
-            public void forget() throws XAException {
-                xaImporter.forget(xid);
-            }
-
-            public void commit(final boolean onePhase) throws XAException {
-                xaImporter.commit(xid, onePhase);
-            }
-        }, result.isNew());
+        final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout);
+        final LocalTransaction transaction = new LocalTransaction(this, result.getTransaction(), xid);
+        return new ImportResult<LocalTransaction>(transaction, result.getControl(), result.isNew());
     }
 
     /**
@@ -174,8 +140,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
 
         final XAImporter xaImporter = provider.getXAImporter();
         return new XARecoverable() {
-            public Xid[] recover(final int flag) throws XAException {
-                return xaImporter.recover(flag);
+            public Xid[] recover(final int flag, final String parentName) throws XAException {
+                return xaImporter.recover(flag, parentName);
             }
 
             public void commit(final Xid xid, final boolean onePhase) throws XAException {

@@ -29,7 +29,11 @@ import javax.transaction.xa.Xid;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public interface XARecoverable {
-    Xid[] recover(int flag) throws XAException;
+    default Xid[] recover(int flag) throws XAException {
+        return recover(flag, null);
+    }
+
+    Xid[] recover(int flag, String parentName) throws XAException;
 
     void commit(Xid xid, boolean onePhase) throws XAException;
 
@@ -37,7 +41,7 @@ public interface XARecoverable {
 
     static XARecoverable from(XATerminator xaTerminator) {
         return xaTerminator instanceof XARecoverable ? (XARecoverable) xaTerminator : new XARecoverable() {
-            public Xid[] recover(final int flag) throws XAException {
+            public Xid[] recover(final int flag, final String parentName) throws XAException {
                 return xaTerminator.recover(flag);
             }
 
@@ -53,7 +57,7 @@ public interface XARecoverable {
 
     static XARecoverable from(XAResource xaResource) {
         return xaResource instanceof XARecoverable ? (XARecoverable) xaResource : new XARecoverable() {
-            public Xid[] recover(final int flag) throws XAException {
+            public Xid[] recover(final int flag, final String parentName) throws XAException {
                 return xaResource.recover(flag);
             }
 

@@ -20,6 +20,7 @@ package org.wildfly.transaction.client.provider.remoting;
 
 import static org.jboss.remoting3.util.StreamUtils.*;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -68,7 +69,7 @@ class Protocol {
     // Execute before-completion for the transaction with the given XID
     public static final int M_XA_BEFORE     = 0x06; // P_XID(gtid) [ P_SEC_CONTEXT ]
     // Get a list of XIDs to recover
-    public static final int M_XA_RECOVER    = 0x07; // [ P_SEC_CONTEXT ]
+    public static final int M_XA_RECOVER    = 0x07; // [ P_SEC_CONTEXT ] [ P_PARENT_NAME ]
     // Mark the XA transaction as rollback-only; used if the resource was called with TMFAIL
     public static final int M_XA_RB_ONLY    = 0x08; // P_XID(gtid) [ P_SEC_CONTEXT ]
     // Unused
@@ -103,7 +104,7 @@ class Protocol {
     // unused                                 0x00
     public static final int P_XID           = 0x01; // body = XID
     public static final int P_ONE_PHASE     = 0x02; // len=0
-    // unused                                 0x03
+    public static final int P_PARENT_NAME   = 0x03; // body = utf8
     // unused                                 0x04
     // unused                                 0x05
     public static final int P_TXN_TIMEOUT   = 0x06; // body = packed-int timeout (seconds)
@@ -242,6 +243,19 @@ class Protocol {
             t = t << 8 | readInt8(is);
         }
         return t;
+    }
+
+    public static String readStringParam(InputStream is, int len) throws IOException {
+        byte[] b = new byte[len];
+        int t = 0;
+        while (t < len) {
+            int res = is.read(b);
+            if (res == -1) {
+                throw new EOFException();
+            }
+            t += res;
+        }
+        return new String(b, StandardCharsets.UTF_8);
     }
 
     public static SimpleXid readXid(InputStream is, int len) throws IOException {

@@ -295,4 +295,7 @@ public interface Log extends BasicLogger {
 
     @Message(id = 71, value = "An unexpected failure condition occurred")
     IllegalStateException unexpectedFailure(@Cause Throwable e);
+
+    @Message(id = 72, value = "No local transaction provider node name specified in the transaction manager environment")
+    IllegalStateException noLocalTransactionProviderNodeName();
 }

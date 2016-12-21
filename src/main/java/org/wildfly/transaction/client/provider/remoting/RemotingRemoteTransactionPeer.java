@@ -151,8 +151,8 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @NotNull
-    public Xid[] recover(final int flag) throws XAException {
-        return getOperationsXA().recover(flag);
+    public Xid[] recover(final int flag, final String parentName) throws XAException {
+        return getOperationsXA().recover(flag, parentName);
     }
 
     @NotNull

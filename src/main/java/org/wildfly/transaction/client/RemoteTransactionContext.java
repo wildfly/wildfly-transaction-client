@@ -30,7 +30,6 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import javax.transaction.RollbackException;
@@ -168,7 +167,7 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
                 }
             }
         }
-        SubordinateXAResource resource = outflowedResources.getOrEnlist(location);
+        SubordinateXAResource resource = outflowedResources.getOrEnlist(location, transaction.getParentName());
         return resource.addHandle(resource.getXid());
     }
 

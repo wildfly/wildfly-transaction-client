@@ -31,16 +31,22 @@ final class SerializedXAResource implements Serializable {
     private static final long serialVersionUID = - 575803514182093617L;
 
     private final URI location;
+    private final String parentName;
 
-    SerializedXAResource(final URI location) {
+    SerializedXAResource(final URI location, final String parentName) {
         this.location = location;
+        this.parentName = parentName;
     }
 
     URI getLocation() {
         return location;
     }
 
+    String getParentName() {
+        return parentName;
+    }
+
     Object readResolve() {
-        return new SubordinateXAResource(location, FL_COMMITTED | FL_CONFIRMED);
+        return new SubordinateXAResource(location, FL_COMMITTED | FL_CONFIRMED, parentName);
     }
 }

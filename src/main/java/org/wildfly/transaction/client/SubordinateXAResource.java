@@ -47,6 +47,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     private static final int DEFAULT_TIMEOUT = 43200; // 12 hours
 
     private final URI location;
+    private final String parentName;
     private volatile int timeout = DEFAULT_TIMEOUT;
     private long startTime = 0L;
     private volatile Xid xid;
@@ -54,12 +55,14 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private final AtomicInteger stateRef = new AtomicInteger(0);
 
-    SubordinateXAResource(final URI location) {
+    SubordinateXAResource(final URI location, final String parentName) {
         this.location = location;
+        this.parentName = parentName;
     }
 
-    SubordinateXAResource(final URI location, final int flags) {
+    SubordinateXAResource(final URI location, final int flags, final String parentName) {
         this.location = location;
+        this.parentName = parentName;
         stateRef.set(flags);
     }
 
@@ -168,7 +171,11 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     public Xid[] recover(final int flag) throws XAException {
-        return getProvider().getPeerHandleForXa(location).recover(flag);
+        return recover(flag, parentName);
+    }
+
+    public Xid[] recover(final int flag, final String parentName) throws XAException {
+        return getProvider().getPeerHandleForXa(location).recover(flag, parentName);
     }
 
     public boolean isSameRM(final XAResource xaRes) throws XAException {
@@ -188,7 +195,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     Object writeReplace() {
-        return new SerializedXAResource(location);
+        return new SerializedXAResource(location, parentName);
     }
 
     public String toString() {

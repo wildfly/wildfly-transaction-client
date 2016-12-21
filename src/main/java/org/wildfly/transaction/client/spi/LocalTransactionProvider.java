@@ -33,6 +33,7 @@ import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAImporter;
 import org.wildfly.transaction.client._private.Log;
@@ -128,6 +129,24 @@ public interface LocalTransactionProvider extends TransactionProvider {
     @NotNull Object getKey(@NotNull Transaction transaction) throws IllegalArgumentException;
 
     /**
+     * Get the unique node name of this provider.
+     *
+     * @return the node name (must not be {@code null})
+     */
+    @NotNull
+    String getNodeName();
+
+    /**
+     * Attempt to derive a node name from an XID.  If the XID is not in a recognized format, {@code null} is returned.
+     *
+     * @param xid the XID (not {@code null})
+     * @return the originating node name
+     */
+    default String getNameFromXid(@NotNull Xid xid) {
+        return null;
+    }
+
+    /**
      * An empty provider which does not support new transactions.
      */
     LocalTransactionProvider EMPTY = new LocalTransactionProvider() {
@@ -171,7 +190,7 @@ public interface LocalTransactionProvider extends TransactionProvider {
         };
         private final XAImporter xaImporter = new XAImporter() {
             @NotNull
-            public ProviderImportResult findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
+            public ImportResult<?> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
                 throw Assert.unsupported();
             }
 
@@ -200,7 +219,7 @@ public interface LocalTransactionProvider extends TransactionProvider {
             }
 
             @NotNull
-            public Xid[] recover(final int flag) throws XAException {
+            public Xid[] recover(final int flag, final String parentName) throws XAException {
                 return SimpleXid.NO_XIDS;
             }
         };
@@ -243,6 +262,11 @@ public interface LocalTransactionProvider extends TransactionProvider {
         @NotNull
         public Object getKey(@NotNull final Transaction transaction) throws IllegalArgumentException {
             throw new IllegalArgumentException(Log.log.transactionNotAssociatedWithThisProvider().getMessage());
+        }
+
+        @NotNull
+        public String getNodeName() {
+            return "<<none>>";
         }
     };
 }

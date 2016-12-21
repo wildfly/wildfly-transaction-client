@@ -21,30 +21,41 @@ package org.wildfly.transaction.client.provider.jboss;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.resource.spi.XATerminator;
+import javax.transaction.HeuristicCommitException;
+import javax.transaction.HeuristicMixedException;
+import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
 import javax.transaction.NotSupportedException;
+import javax.transaction.RollbackException;
+import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
+import com.arjuna.ats.arjuna.common.arjPropertyManager;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAImporter;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.LocalTransactionProvider;
+import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 
 /**
  * The local transaction provider for JBoss application servers.
@@ -142,32 +153,184 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return tsr.getTransactionKey();
     }
 
-    static final class Entry {
-        private final SimpleXid gtid;
-        private final Transaction transaction;
-        private final int timeout;
+    @NotNull
+    public String getNodeName() {
+        final String nodeIdentifier = arjPropertyManager.getCoreEnvironmentBean().getNodeIdentifier();
+        if (nodeIdentifier == null) {
+            throw Log.log.noLocalTransactionProviderNodeName();
+        }
+        return nodeIdentifier;
+    }
+
+    private static final int UID_LEN = 28;
+
+    public String getNameFromXid(@NotNull final Xid xid) {
+        final int formatId = xid.getFormatId();
+        if (formatId == 0x20000 || formatId == 0x20005 || formatId == 0x20008) {
+            final byte[] gtid = xid.getGlobalTransactionId();
+            final int length = gtid.length;
+            if (length <= UID_LEN) {
+                // no parent name encoded there
+                return null;
+            }
+            return new String(gtid, UID_LEN, length - UID_LEN, StandardCharsets.UTF_8);
+        } else {
+            return null;
+        }
+    }
+
+    final class Entry implements SubordinateTransactionControl {
+        private final SimpleXid xid;
+        private final ImportedTransaction transaction;
+        private final AtomicInteger timeoutRef;
         private final long start = System.nanoTime();
 
-        Entry(final SimpleXid gtid, final Transaction transaction, final int timeout) {
-            this.gtid = gtid;
+        Entry(final SimpleXid xid, final ImportedTransaction transaction, final int timeout) {
+            this.xid = xid;
             this.transaction = transaction;
-            this.timeout = timeout;
+            this.timeoutRef = new AtomicInteger(timeout);
         }
 
-        SimpleXid getGtid() {
-            return gtid;
+        SimpleXid getXid() {
+            return xid;
         }
 
-        Transaction getTransaction() {
+        ImportedTransaction getTransaction() {
             return transaction;
         }
 
         int getTimeout() {
-            return timeout;
+            return timeoutRef.get();
         }
 
         long getRemainingNanos() {
-            return max(0L, timeout * 1_000_000_000L - max(0, System.nanoTime() - start));
+            return max(0L, timeoutRef.get() * 1_000_000_000L - max(0, System.nanoTime() - start));
+        }
+
+        void growTimeout(final int newTimeout) {
+            final AtomicInteger timeoutRef = this.timeoutRef;
+            int timeout;
+            do {
+                timeout = timeoutRef.get();
+                if (newTimeout <= timeout) {
+                    return;
+                }
+            } while (! timeoutRef.compareAndSet(timeout, newTimeout));
+        }
+
+        void shrinkTimeout(final int newTimeout) {
+            final AtomicInteger timeoutRef = this.timeoutRef;
+            int timeout;
+            do {
+                timeout = timeoutRef.get();
+                if (newTimeout >= timeout) {
+                    return;
+                }
+            } while (! timeoutRef.compareAndSet(timeout, newTimeout));
+        }
+
+        public void rollback() throws XAException {
+            final ImportedTransaction transaction = this.transaction;
+            if (transaction.activated()) try {
+                transaction.doRollback();
+            } catch (HeuristicCommitException e) {
+                throw new XAException(XAException.XA_HEURCOM);
+            } catch (HeuristicMixedException e) {
+                throw new XAException(XAException.XA_HEURMIX);
+            } catch (HeuristicRollbackException e) {
+                throw new XAException(XAException.XA_HEURRB);
+            } catch (SystemException | RuntimeException e) {
+                throw new XAException(XAException.XAER_RMERR);
+            } finally {
+                ext.removeImportedTransaction(xid);
+            }
+        }
+
+        public void end(final int flags) throws XAException {
+            if (flags == XAResource.TMFAIL) {
+                try {
+                    transaction.setRollbackOnly();
+                } catch (IllegalStateException e) {
+                    throw new XAException(XAException.XAER_NOTA);
+                } catch (RuntimeException | SystemException e) {
+                    throw new XAException(XAException.XAER_RMERR);
+                }
+            }
+        }
+
+        public void beforeCompletion() throws XAException {
+            try {
+                if (! transaction.doBeforeCompletion()) {
+                    throw new XAException(XAException.XAER_RMERR);
+                }
+            } catch (IllegalStateException e) {
+                throw new XAException(XAException.XAER_NOTA);
+            } catch (RuntimeException | SystemException e) {
+                throw new XAException(XAException.XAER_RMERR);
+            }
+        }
+
+        public int prepare() throws XAException {
+            final int tpo = transaction.doPrepare();
+            switch (tpo) {
+                case PREPARE_READONLY:
+                    ext.removeImportedTransaction(xid);
+                    return XAResource.XA_RDONLY;
+
+                case PREPARE_OK:
+                    return XAResource.XA_OK;
+
+                case PREPARE_NOTOK:
+                    try {
+                        transaction.doRollback();
+                    } catch (HeuristicCommitException | HeuristicMixedException | HeuristicRollbackException | SystemException e) {
+                        // TODO: the old code removes the transaction here, but JBTM-427 implies that the TM should do this explicitly later; for now keep old behavior
+                        ext.removeImportedTransaction(xid);
+                        // JBTM-427; JTA doesn't allow heuristic codes on prepare :(
+                        throw new XAException(XAException.XAER_RMERR);
+                    }
+                    throw new XAException(XAException.XA_RBROLLBACK);
+
+                case INVALID_TRANSACTION:
+                    throw new XAException(XAException.XAER_NOTA);
+
+                default:
+                    throw new XAException(XAException.XA_RBOTHER);
+            }
+        }
+
+        public void forget() throws XAException {
+            try {
+                transaction.doForget();
+            } catch (IllegalStateException e) {
+                throw new XAException(XAException.XAER_NOTA);
+            } catch (RuntimeException e) {
+                throw new XAException(XAException.XAER_RMERR);
+            }
+        }
+
+        public void commit(final boolean onePhase) throws XAException {
+            try {
+                if (onePhase) {
+                    transaction.doOnePhaseCommit();
+                } else {
+                    if (! transaction.doCommit()) {
+                        throw new XAException(XAException.XA_RETRY);
+                    }
+                }
+            } catch (HeuristicMixedException e) {
+                throw new XAException(XAException.XA_HEURMIX);
+            } catch (RollbackException e) {
+                throw new XAException(XAException.XA_RBROLLBACK);
+            } catch (HeuristicCommitException e) {
+                throw new XAException(XAException.XA_HEURCOM);
+            } catch (HeuristicRollbackException e) {
+                throw new XAException(XAException.XA_HEURRB);
+            } catch (IllegalStateException e) {
+                throw new XAException(XAException.XAER_NOTA);
+            } catch (RuntimeException | SystemException e) {
+                throw new XAException(XAException.XAER_RMERR);
+            }
         }
     }
 
@@ -180,30 +343,68 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         });
 
         @NotNull
-        public ProviderImportResult findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
-            final SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+        public ImportResult<ImportedTransaction> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
+            final SimpleXid simpleXid = SimpleXid.of(xid);
+            final SimpleXid gtid = simpleXid.withoutBranch();
+            final int status;
             Entry entry = knownImported.get(gtid);
             if (entry != null) {
-                return new ProviderImportResult(entry.getTransaction(), false);
+                final ImportedTransaction transaction = entry.getTransaction();
+                try {
+                    status = transaction.getStatus();
+                } catch (SystemException e) {
+                    throw new XAException(XAException.XAER_RMFAIL);
+                }
+                if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
+                    entry.growTimeout(timeout);
+                } else {
+                    entry.shrinkTimeout(min(staleTransactionTime, timeout));
+                }
+                return new ImportResult<ImportedTransaction>(transaction, entry, false);
             }
             final TransactionImportResult result = ext.importTransaction(xid, timeout);
-            final Transaction transaction = result.getTransaction();
-            knownImported.putIfAbsent(gtid, new Entry(gtid, transaction, min(staleTransactionTime, timeout)));
-            return new ProviderImportResult(transaction, result.isNewImportedTransaction());
+            final ImportedTransaction transaction = result.getTransaction();
+            try {
+                status = transaction.getStatus();
+            } catch (SystemException e) {
+                throw new XAException(XAException.XAER_RMFAIL);
+            }
+            final int newTimeout;
+            if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
+                newTimeout = timeout;
+            } else {
+                newTimeout = min(staleTransactionTime, timeout);
+            }
+            entry = new Entry(simpleXid, transaction, newTimeout);
+            knownImported.putIfAbsent(gtid, entry);
+            return new ImportResult<ImportedTransaction>(transaction, entry, result.isNewImportedTransaction());
         }
 
         public Transaction findExistingTransaction(final Xid xid) throws XAException {
-            final SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+            final SimpleXid simpleXid = SimpleXid.of(xid);
+            final SimpleXid gtid = simpleXid.withoutBranch();
+            final int status;
             Entry entry = knownImported.get(gtid);
             if (entry != null) {
+                final Transaction transaction = entry.getTransaction();
+                try {
+                    status = transaction.getStatus();
+                } catch (SystemException e) {
+                    throw new XAException(XAException.XAER_RMFAIL);
+                }
+                if (status != Status.STATUS_ACTIVE && status != Status.STATUS_MARKED_ROLLBACK) {
+                    entry.shrinkTimeout(staleTransactionTime);
+                }
                 return entry.getTransaction();
             }
             final Transaction transaction = ext.getTransaction(xid);
             if (transaction == null) {
                 return null;
             }
-            // TODO: get the transaction timeout value, somehow
-            knownImported.putIfAbsent(gtid, new Entry(gtid, transaction, staleTransactionTime));
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw new XAException(XAException.XAER_NOTA);
+            }
+            knownImported.putIfAbsent(gtid, new Entry(simpleXid, (ImportedTransaction) transaction, staleTransactionTime));
             return transaction;
         }
 
@@ -219,25 +420,48 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
 
         public void commit(final Xid xid, final boolean onePhase) throws XAException {
-            xt.commit(xid, onePhase);
+            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+            if (entry != null) {
+                entry.commit(onePhase);
+            } else {
+                throw new XAException(XAException.XAER_NOTA);
+            }
         }
 
         public void forget(final Xid xid) throws XAException {
-            xt.forget(xid);
+            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+            if (entry != null) {
+                entry.forget();
+            } else {
+                throw new XAException(XAException.XAER_NOTA);
+            }
         }
 
         public int prepare(final Xid xid) throws XAException {
-            return xt.prepare(xid);
+            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+            if (entry != null) {
+                return entry.prepare();
+            } else {
+                throw new XAException(XAException.XAER_NOTA);
+            }
         }
 
         public void rollback(final Xid xid) throws XAException {
-            xt.rollback(xid);
+            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+            if (entry != null) {
+                entry.rollback();
+            } else {
+                throw new XAException(XAException.XAER_NOTA);
+            }
         }
 
         @NotNull
-        public Xid[] recover(final int flag) throws XAException {
-            // TODO probably not right... check against old code
-            return xt.recover(flag);
+        public Xid[] recover(final int flag, final String parentNodeName) throws XAException {
+            try {
+                return ext.doRecover(null, parentNodeName);
+            } catch (NotSupportedException e) {
+                throw new XAException(XAException.XAER_RMFAIL);
+            }
         }
 
         private ImportedTransaction requireTxn(final Xid xid) throws XAException {
@@ -376,4 +600,19 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
             return new JBossLocalTransactionProvider(staleTransactionTime, xaTerminator, extendedJBossXATerminator, transactionManager, transactionSynchronizationRegistry);
         }
     }
+
+    // Prepare result codes; see com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome for more info
+    private static final int PREPARE_OK = 0;
+    private static final int PREPARE_NOTOK = 1;
+    private static final int PREPARE_READONLY = 2;
+    private static final int HEURISTIC_ROLLBACK = 3;
+    private static final int HEURISTIC_COMMIT = 4;
+    private static final int HEURISTIC_MIXED = 5;
+    private static final int HEURISTIC_HAZARD = 6;
+    private static final int FINISH_OK = 7;
+    private static final int FINISH_ERROR = 8;
+    private static final int NOT_PREPARED = 9;
+    private static final int ONE_PHASE_ERROR = 10;
+    private static final int INVALID_TRANSACTION = 11;
+    private static final int PREPARE_ONE_PHASE_COMMITTED = 12;
 }

@@ -18,6 +18,8 @@
 
 package org.wildfly.transaction.client;
 
+import javax.transaction.Transaction;
+
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 
@@ -26,8 +28,8 @@ import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class ImportResult {
-    private final LocalTransaction transaction;
+public final class ImportResult<T extends Transaction> {
+    private final T transaction;
     private final SubordinateTransactionControl control;
     private final boolean isNew;
 
@@ -38,7 +40,7 @@ public final class ImportResult {
      * @param control the controller for the subordinate transaction (must not be {@code null})
      * @param isNew {@code true} if the transaction was just now imported, {@code false} if the transaction already existed
      */
-    public ImportResult(final LocalTransaction transaction, final SubordinateTransactionControl control, final boolean isNew) {
+    public ImportResult(final T transaction, final SubordinateTransactionControl control, final boolean isNew) {
         this.transaction = Assert.checkNotNullParam("transaction", transaction);
         this.control = Assert.checkNotNullParam("control", control);
         this.isNew = isNew;
@@ -49,7 +51,7 @@ public final class ImportResult {
      *
      * @return the transaction (not {@code null})
      */
-    public LocalTransaction getTransaction() {
+    public T getTransaction() {
         return transaction;
     }
 

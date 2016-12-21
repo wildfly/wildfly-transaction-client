@@ -19,6 +19,7 @@
 package org.wildfly.transaction.client;
 
 import java.net.URI;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -33,23 +34,24 @@ import org.wildfly.transaction.client._private.Log;
 final class XAOutflowedResources {
 
     private final LocalTransaction transaction;
-    private final ConcurrentMap<URI, SubordinateXAResource> enlistments = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Key, SubordinateXAResource> enlistments = new ConcurrentHashMap<>();
 
     XAOutflowedResources(final LocalTransaction transaction) {
         this.transaction = transaction;
     }
 
-    SubordinateXAResource getOrEnlist(final URI location) throws SystemException, RollbackException {
-        SubordinateXAResource xaResource = enlistments.get(location);
+    SubordinateXAResource getOrEnlist(final URI location, final String parentName) throws SystemException, RollbackException {
+        final Key key = new Key(location, parentName);
+        SubordinateXAResource xaResource = enlistments.get(key);
         if (xaResource != null) {
             return xaResource;
         }
         synchronized (this) {
-            xaResource = enlistments.get(location);
+            xaResource = enlistments.get(key);
             if (xaResource != null) {
                 return xaResource;
             }
-            xaResource = new SubordinateXAResource(location);
+            xaResource = new SubordinateXAResource(location, parentName);
             if (! transaction.enlistResource(xaResource)) {
                 throw Log.log.couldNotEnlist();
             }
@@ -76,12 +78,42 @@ final class XAOutflowedResources {
                     // ignored
                 }
             });
-            enlistments.put(location, xaResource);
+            enlistments.put(key, xaResource);
             return xaResource;
         }
     }
 
     LocalTransaction getTransaction() {
         return transaction;
+    }
+
+    static final class Key {
+        private final URI location;
+        private final String parentName;
+
+        Key(final URI location, final String parentName) {
+            this.location = location;
+            this.parentName = parentName;
+        }
+
+        URI getLocation() {
+            return location;
+        }
+
+        String getParentName() {
+            return parentName;
+        }
+
+        public boolean equals(final Object obj) {
+            return obj instanceof Key && equals((Key) obj);
+        }
+
+        private boolean equals(final Key key) {
+            return Objects.equals(location, key.location) && Objects.equals(parentName, key.parentName);
+        }
+
+        public int hashCode() {
+            return Objects.hashCode(location) * 31 + Objects.hashCode(parentName);
+        }
     }
 }
