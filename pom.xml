@@ -24,7 +24,7 @@
 
     <groupId>org.wildfly.transaction</groupId>
     <artifactId>wildfly-transaction-client</artifactId>
-    <version>1.0.0.Beta3-SNAPSHOT</version>
+    <version>1.0.0.Beta3</version>
 
     <parent>
         <groupId>org.jboss</groupId>
