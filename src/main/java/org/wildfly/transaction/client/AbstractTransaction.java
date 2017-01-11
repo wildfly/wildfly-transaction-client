@@ -54,6 +54,8 @@ public abstract class AbstractTransaction implements Transaction {
 
     abstract void resume() throws SystemException;
 
+    abstract void verifyAssociation();
+
     /**
      * Get a provider-specific interface from this transaction.
      *

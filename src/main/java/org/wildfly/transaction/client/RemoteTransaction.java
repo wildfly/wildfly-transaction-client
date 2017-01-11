@@ -80,6 +80,10 @@ public final class RemoteTransaction extends AbstractTransaction {
         // no operation
     }
 
+    void verifyAssociation() {
+        // no operation
+    }
+
     public <T> T getProviderInterface(final Class<T> providerInterfaceType) {
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
