@@ -44,7 +44,7 @@ public final class RemotingTransactionService {
         this.transactionContext = transactionContext;
     }
 
-    Registration register() throws ServiceRegistrationException {
+    public Registration register() throws ServiceRegistrationException {
         return endpoint.registerService("txn", new OpenListener() {
             public void channelOpened(final Channel channel) {
                 getServerForConnection(channel.getConnection()).openChannel(channel);

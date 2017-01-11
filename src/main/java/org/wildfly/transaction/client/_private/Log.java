@@ -298,4 +298,7 @@ public interface Log extends BasicLogger {
 
     @Message(id = 72, value = "No local transaction provider node name specified in the transaction manager environment")
     IllegalStateException noLocalTransactionProviderNodeName();
+
+    @Message(id = 73, value = "Unexpected provider transaction mismatch; expected %s, got %s")
+    IllegalStateException unexpectedProviderTransactionMismatch(Transaction expected, Transaction actual);
 }

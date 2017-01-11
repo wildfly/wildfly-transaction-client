@@ -54,7 +54,13 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
 
     private final LocalTransactionProvider provider;
 
-    LocalTransactionContext(final LocalTransactionProvider provider) {
+    /**
+     * Construct a new instance.  The given provider will be used to manage local transactions.
+     *
+     * @param provider the local transaction provider
+     */
+    public LocalTransactionContext(final LocalTransactionProvider provider) {
+        Assert.checkNotNullParam("provider", provider);
         this.provider = provider;
     }
 

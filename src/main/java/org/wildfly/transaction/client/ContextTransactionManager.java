@@ -49,7 +49,7 @@ public final class ContextTransactionManager implements TransactionManager {
         if (state.transaction != null) {
             throw Log.log.nestedNotSupported();
         }
-        state.transaction = LocalTransactionContext.getCurrent().beginTransaction(state.timeout);
+        resume(LocalTransactionContext.getCurrent().beginTransaction(state.timeout));
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
@@ -78,23 +78,21 @@ public final class ContextTransactionManager implements TransactionManager {
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
         final State state = stateRef.get();
-        try {
-            if (state.transaction == null) {
-                throw Log.log.noTransaction();
-            }
-            state.transaction.setRollbackOnly();
-        } finally {
-            state.transaction = null;
+        if (state.transaction == null) {
+            throw Log.log.noTransaction();
         }
+        state.transaction.setRollbackOnly();
     }
 
     public int getStatus() throws SystemException {
         final State state = stateRef.get();
-        return state == null ? Status.STATUS_NO_TRANSACTION : state.transaction.getStatus();
+        return state == null || state.transaction == null ? Status.STATUS_NO_TRANSACTION : state.transaction.getStatus();
     }
 
     public AbstractTransaction getTransaction() {
-        return stateRef.get().transaction;
+        final AbstractTransaction transaction = stateRef.get().transaction;
+        if (transaction != null) transaction.verifyAssociation();
+        return transaction;
     }
 
     public void setTransactionTimeout(final int timeout) {
@@ -109,9 +107,15 @@ public final class ContextTransactionManager implements TransactionManager {
     public AbstractTransaction suspend() throws SystemException {
         final State state = stateRef.get();
         AbstractTransaction transaction = state.transaction;
-        transaction.suspend();
-        state.transaction = null;
-        return transaction;
+        if (transaction == null) {
+            return null;
+        }
+        try {
+            transaction.suspend();
+            return transaction;
+        } finally {
+            state.transaction = null;
+        }
     }
 
     public void resume(final Transaction transaction) throws InvalidTransactionException, IllegalStateException, SystemException {

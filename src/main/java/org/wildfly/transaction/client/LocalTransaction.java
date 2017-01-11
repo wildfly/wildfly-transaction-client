@@ -45,14 +45,26 @@ public final class LocalTransaction extends AbstractTransaction {
         if (isImported()) {
             throw Log.log.commitOnImported();
         }
-        transaction.commit();
+        // ensure we're not associated with the transaction
+        final TransactionManager transactionManager = owner.getProvider().getTransactionManager();
+        if (transaction.equals(transactionManager.getTransaction())) {
+            transactionManager.commit();
+        } else {
+            transaction.commit();
+        }
     }
 
     public void rollback() throws IllegalStateException, SystemException {
         if (isImported()) {
             throw Log.log.rollbackOnImported();
         }
-        transaction.rollback();
+        // ensure we're not associated with the transaction
+        final TransactionManager transactionManager = owner.getProvider().getTransactionManager();
+        if (transaction.equals(transactionManager.getTransaction())) {
+            transactionManager.rollback();
+        } else {
+            transaction.rollback();
+        }
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
@@ -114,8 +126,9 @@ public final class LocalTransaction extends AbstractTransaction {
         if (! transaction.equals(transactionManager.getTransaction())) {
             throw Log.log.invalidTxnState();
         }
-        if (! transaction.equals(transactionManager.suspend())) {
-            throw Log.log.invalidTxnState();
+        final Transaction transactionManagerTransaction = transactionManager.suspend();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
         }
     }
 
@@ -124,6 +137,23 @@ public final class LocalTransaction extends AbstractTransaction {
         try {
             transactionManager.resume(transaction);
         } catch (InvalidTransactionException e) {
+            // should be impossible
+            throw Log.log.invalidTxnState();
+        }
+        final Transaction transactionManagerTransaction = transactionManager.getTransaction();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
+    }
+
+    void verifyAssociation() {
+        TransactionManager transactionManager = owner.getProvider().getTransactionManager();
+        try {
+            final Transaction transactionManagerTransaction = transactionManager.getTransaction();
+            if (! transaction.equals(transactionManagerTransaction)) {
+                throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+            }
+        } catch (SystemException e) {
             // should be impossible
             throw Log.log.invalidTxnState();
         }

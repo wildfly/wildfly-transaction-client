@@ -101,7 +101,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         } catch (NotSupportedException e) {
             throw Log.log.unexpectedFailure(e);
         } catch (Throwable t) {
-            try {
+            if (suspended != null) try {
                 tm.resume(suspended);
             } catch (InvalidTransactionException e) {
                 e.addSuppressed(t);
@@ -116,12 +116,18 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     public void registerInterposedSynchronization(@NotNull final Transaction transaction, @NotNull final Synchronization sync) throws IllegalArgumentException {
+        final Transaction transactionManagerTransaction = safeGetTransaction();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
         tsr.registerInterposedSynchronization(sync);
     }
 
     public Object getResource(@NotNull final Transaction transaction, @NotNull final Object key) {
-        // we know this will always be true
-        assert safeGetTransaction() != transaction;
+        final Transaction transactionManagerTransaction = safeGetTransaction();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
         return tsr.getResource(key);
     }
 
@@ -135,21 +141,27 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     public void putResource(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
-        // we know this will always be true
-        assert safeGetTransaction() != transaction;
+        final Transaction transactionManagerTransaction = safeGetTransaction();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
         tsr.putResource(key, value);
     }
 
     public boolean getRollbackOnly(@NotNull final Transaction transaction) throws IllegalArgumentException {
-        // we know this will always be true
-        assert safeGetTransaction() != transaction;
+        final Transaction transactionManagerTransaction = safeGetTransaction();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
         return tsr.getRollbackOnly();
     }
 
     @NotNull
     public Object getKey(@NotNull final Transaction transaction) throws IllegalArgumentException {
-        // we know this will always be true
-        assert safeGetTransaction() != transaction;
+        final Transaction transactionManagerTransaction = safeGetTransaction();
+        if (! transaction.equals(transactionManagerTransaction)) {
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
         return tsr.getTransactionKey();
     }
 
