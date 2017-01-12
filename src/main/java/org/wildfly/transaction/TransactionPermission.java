@@ -32,7 +32,8 @@ public final class TransactionPermission extends AbstractNameSetOnlyPermission<T
     private static final StringEnumeration NAMES = StringEnumeration.of(
         "getRecoveryInterface",
         "getTransactionResolver",
-        "getProviderInterface"
+        "getProviderInterface",
+        "registerAssociationListener"
     );
 
     static final StringMapping<TransactionPermission> mapping = new StringMapping<>(NAMES, TransactionPermission::new);

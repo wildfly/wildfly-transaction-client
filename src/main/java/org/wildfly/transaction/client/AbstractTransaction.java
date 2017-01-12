@@ -18,10 +18,16 @@
 
 package org.wildfly.transaction.client;
 
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+
 import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
+
+import org.wildfly.common.Assert;
+import org.wildfly.transaction.TransactionPermission;
 
 /**
  * A managed transaction.
@@ -29,7 +35,10 @@ import javax.transaction.Transaction;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public abstract class AbstractTransaction implements Transaction {
+    private static final TransactionPermission ASSOCIATION_LISTENER_PERMISSION = TransactionPermission.forName("registerAssociationListener");
+
     private final Object outflowLock = new Object();
+    final Set<AssociationListener> associationListeners = new CopyOnWriteArraySet<>();
 
     AbstractTransaction() {
     }
@@ -65,6 +74,22 @@ public abstract class AbstractTransaction implements Transaction {
      */
     public <T> T getProviderInterface(Class<T> providerInterfaceType) {
         return null;
+    }
+
+    /**
+     * Register an association listener for this transaction, which will be called any time this thread is suspended
+     * or resumed.
+     *
+     * @param associationListener the association listener (must not be {@code null})
+     */
+    public void registerAssociationListener(AssociationListener associationListener) {
+        Assert.checkNotNullParam("associationListener", associationListener);
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(ASSOCIATION_LISTENER_PERMISSION);
+        }
+
+        associationListeners.add(associationListener);
     }
 
     Object getOutflowLock() {

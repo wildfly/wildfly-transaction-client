@@ -122,6 +122,13 @@ public final class LocalTransaction extends AbstractTransaction {
     }
 
     void suspend() throws SystemException {
+        for (AssociationListener associationListener : associationListeners) {
+            try {
+                associationListener.associationChanged(this, false);
+            } catch (Throwable t) {
+                Log.log.tracef(t, "An association listener %s threw an exception on transaction %s", associationListener, this);
+            }
+        }
         TransactionManager transactionManager = owner.getProvider().getTransactionManager();
         if (! transaction.equals(transactionManager.getTransaction())) {
             throw Log.log.invalidTxnState();
@@ -143,6 +150,13 @@ public final class LocalTransaction extends AbstractTransaction {
         final Transaction transactionManagerTransaction = transactionManager.getTransaction();
         if (! transaction.equals(transactionManagerTransaction)) {
             throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        }
+        for (AssociationListener associationListener : associationListeners) {
+            try {
+                associationListener.associationChanged(this, true);
+            } catch (Throwable t) {
+                Log.log.tracef(t, "An association listener %s threw an exception on transaction %s", associationListener, this);
+            }
         }
     }
 
