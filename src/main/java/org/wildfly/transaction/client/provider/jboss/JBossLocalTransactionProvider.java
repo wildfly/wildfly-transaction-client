@@ -44,6 +44,7 @@ import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
+import com.arjuna.ats.arjuna.AtomicAction;
 import com.arjuna.ats.arjuna.common.arjPropertyManager;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
@@ -283,6 +284,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
 
         public int prepare() throws XAException {
+            final ImportedTransaction transaction = this.transaction;
             final int tpo = transaction.doPrepare();
             switch (tpo) {
                 case PREPARE_READONLY:
@@ -299,9 +301,9 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                         // TODO: the old code removes the transaction here, but JBTM-427 implies that the TM should do this explicitly later; for now keep old behavior
                         ext.removeImportedTransaction(xid);
                         // JBTM-427; JTA doesn't allow heuristic codes on prepare :(
-                        throw new XAException(XAException.XAER_RMERR);
+                        throw initializeSuppressed(new XAException(XAException.XAER_RMERR), transaction, e);
                     }
-                    throw new XAException(XAException.XA_RBROLLBACK);
+                    throw initializeSuppressed(new XAException(XAException.XA_RBROLLBACK), transaction, null);
 
                 case INVALID_TRANSACTION:
                     throw new XAException(XAException.XAER_NOTA);
@@ -322,6 +324,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
 
         public void commit(final boolean onePhase) throws XAException {
+            final ImportedTransaction transaction = this.transaction;
             try {
                 if (onePhase) {
                     transaction.doOnePhaseCommit();
@@ -331,18 +334,32 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                     }
                 }
             } catch (HeuristicMixedException e) {
-                throw new XAException(XAException.XA_HEURMIX);
+                throw initializeSuppressed(new XAException(XAException.XA_HEURMIX), transaction, e);
             } catch (RollbackException e) {
-                throw new XAException(XAException.XA_RBROLLBACK);
+                throw initializeSuppressed(new XAException(XAException.XA_RBROLLBACK), transaction, e);
             } catch (HeuristicCommitException e) {
-                throw new XAException(XAException.XA_HEURCOM);
+                throw initializeSuppressed(new XAException(XAException.XA_HEURCOM), transaction, e);
             } catch (HeuristicRollbackException e) {
-                throw new XAException(XAException.XA_HEURRB);
+                throw initializeSuppressed(new XAException(XAException.XA_HEURRB), transaction, e);
             } catch (IllegalStateException e) {
-                throw new XAException(XAException.XAER_NOTA);
+                throw initializeSuppressed(new XAException(XAException.XAER_NOTA), transaction, e);
             } catch (RuntimeException | SystemException e) {
-                throw new XAException(XAException.XAER_RMERR);
+                throw initializeSuppressed(new XAException(XAException.XAER_RMERR), transaction, e);
             }
+        }
+
+        private XAException initializeSuppressed(final XAException ex, final ImportedTransaction transaction, final Throwable cause) {
+            if (cause != null) ex.initCause(cause);
+            try {
+                if (transaction instanceof AtomicAction) {
+                    for (Throwable t : ((AtomicAction) transaction).getDeferredThrowables()) {
+                        ex.addSuppressed(t);
+                    }
+                }
+            } catch (NoClassDefFoundError ignored) {
+                // skip attaching the deferred throwables
+            }
+            return ex;
         }
     }
 
