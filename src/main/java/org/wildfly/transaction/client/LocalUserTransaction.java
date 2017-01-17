@@ -18,6 +18,8 @@
 
 package org.wildfly.transaction.client;
 
+import java.io.Serializable;
+
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.NotSupportedException;
@@ -30,7 +32,9 @@ import javax.transaction.UserTransaction;
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class LocalUserTransaction implements UserTransaction {
+public final class LocalUserTransaction implements UserTransaction, Serializable {
+    private static final long serialVersionUID = -8082008006243656822L;
+
     private static final LocalUserTransaction instance = new LocalUserTransaction();
 
     private LocalUserTransaction() {
@@ -58,6 +62,14 @@ public final class LocalUserTransaction implements UserTransaction {
 
     public void setTransactionTimeout(final int seconds) throws SystemException {
         ContextTransactionManager.getInstance().setTransactionTimeout(seconds);
+    }
+
+    Object readResolve() {
+        return instance;
+    }
+
+    Object writeReplace() {
+        return instance;
     }
 
     /**
