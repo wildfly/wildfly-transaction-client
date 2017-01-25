@@ -192,6 +192,11 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
     }
 
+    public <T> T getProviderInterface(final Transaction transaction, final Class<T> providerInterfaceType) {
+        // access to underlying txn
+        return providerInterfaceType.isInstance(transaction) ? providerInterfaceType.cast(transaction) : null;
+    }
+
     final class Entry implements SubordinateTransactionControl {
         private final SimpleXid xid;
         private final ImportedTransaction transaction;

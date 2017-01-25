@@ -147,6 +147,18 @@ public interface LocalTransactionProvider extends TransactionProvider {
     }
 
     /**
+     * Attempt to acquire a provider interface instance from the given provider transaction.
+     *
+     * @param transaction the provider transaction (not {@code null})
+     * @param providerInterfaceType the provider interface type class (not {@code null})
+     * @param <T> the provider interface type
+     * @return the provider interface instance, or {@code null} if none matches
+     */
+    default <T> T getProviderInterface(Transaction transaction, Class<T> providerInterfaceType) {
+        return null;
+    }
+
+    /**
      * An empty provider which does not support new transactions.
      */
     LocalTransactionProvider EMPTY = new LocalTransactionProvider() {

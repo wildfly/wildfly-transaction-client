@@ -182,6 +182,10 @@ public final class LocalTransaction extends AbstractTransaction {
         return owner.getProvider().isImported(transaction);
     }
 
+    public <T> T getProviderInterface(final Class<T> providerInterfaceType) {
+        return owner.getProvider().getProviderInterface(transaction, providerInterfaceType);
+    }
+
     public int hashCode() {
         return transaction.hashCode();
     }
