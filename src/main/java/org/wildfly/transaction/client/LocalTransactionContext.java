@@ -23,6 +23,7 @@ import static java.security.AccessController.doPrivileged;
 import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
+import javax.transaction.NotSupportedException;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.xa.XAException;
@@ -129,6 +130,26 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout);
         final LocalTransaction transaction = new LocalTransaction(this, result.getTransaction(), xid);
         return new ImportResult<LocalTransaction>(transaction, result.getControl(), result.isNew());
+    }
+
+    /**
+     * Attempt to import a provider's current transaction as a local transaction.
+     *
+     * @return {@code true} if the transaction was associated, {@code false} if the provider had no current transaction
+     * @throws SystemException if an error occurred acquiring the current transaction from the provider
+     * @throws NotSupportedException if the thread is already associated with a transaction
+     */
+    public boolean importProviderTransaction() throws SystemException, NotSupportedException {
+        final ContextTransactionManager.State state = ContextTransactionManager.INSTANCE.getStateRef().get();
+        if (state.transaction != null) {
+            throw Log.log.nestedNotSupported();
+        }
+        final Transaction transaction = provider.getTransactionManager().getTransaction();
+        if (transaction == null) {
+            return false;
+        }
+        state.transaction = new LocalTransaction(this, transaction, null);
+        return true;
     }
 
     /**
