@@ -56,7 +56,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
 
     @NotNull
     RemotingOperations getOperations() throws IOException {
-        final Connection connection = endpoint.getConnection(location).get();
+        final Connection connection = endpoint.getConnection(location, "jta", "jboss").get();
         final Attachments attachments = connection.getAttachments();
         RemotingOperations operations = attachments.getAttachment(key);
         if (operations != null) {
