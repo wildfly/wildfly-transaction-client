@@ -100,6 +100,13 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
     private static final ContextManager<RemoteTransactionContext> CONTEXT_MANAGER = new ContextManager<RemoteTransactionContext>(RemoteTransactionContext.class, "org.wildfly.transaction.client.context.remote");
     private static final Supplier<RemoteTransactionContext> PRIVILEGED_SUPPLIER = doPrivileged((PrivilegedAction<Supplier<RemoteTransactionContext>>) CONTEXT_MANAGER::getPrivilegedSupplier);
 
+    static {
+        doPrivileged((PrivilegedAction<Void>) () -> {
+            CONTEXT_MANAGER.setGlobalDefault(new RemoteTransactionContext(RemoteTransactionContext.class.getClassLoader()));
+            return null;
+        });
+    }
+
     /**
      * Get the remote transaction context manager.
      *

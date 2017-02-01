@@ -78,8 +78,8 @@ final class TransactionServerChannel {
 
         public void handleMessage(final Channel channel, final MessageInputStream messageOriginal) {
             try (MessageInputStream message = messageOriginal) {
-                final int id = message.readUnsignedByte();
                 final int invId = message.readUnsignedShort();
+                final int id = message.readUnsignedByte();
                 switch (id) {
                     case M_CAPABILITY: {
                         handleCapabilityMessage(message, invId);
@@ -126,8 +126,8 @@ final class TransactionServerChannel {
 
                     default: {
                         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-                            outputStream.writeByte(M_RESP_ERROR);
                             outputStream.writeShort(invId);
+                            outputStream.writeByte(M_RESP_ERROR);
                         } catch (IOException e) {
                             log.outboundException(e);
                         }
@@ -154,8 +154,8 @@ final class TransactionServerChannel {
         }
         // acknowledge no capabilities
         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-            outputStream.writeByte(M_RESP_CAPABILITY);
             outputStream.writeShort(invId);
+            outputStream.writeByte(M_RESP_CAPABILITY);
         }
         return;
     }
@@ -171,12 +171,12 @@ final class TransactionServerChannel {
             len = StreamUtils.readPackedUnsignedInt32(message);
             switch (param) {
                 case P_TXN_CONTEXT: {
-                    context = message.readInt();
+                    context = readIntParam(message, len);
                     hasContext = true;
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -192,7 +192,8 @@ final class TransactionServerChannel {
         }
         final LocalTxn txn = server.getTxnMap().removeKey(context);
         if (txn == null) {
-            writeParamError(invId);
+            // nothing to roll back!
+            writeSimpleResponse(M_RESP_UT_ROLLBACK, invId);
             return;
         }
         SecurityIdentity securityIdentity;
@@ -226,12 +227,12 @@ final class TransactionServerChannel {
             len = StreamUtils.readPackedUnsignedInt32(message);
             switch (param) {
                 case P_TXN_CONTEXT: {
-                    context = message.readInt();
+                    context = readIntParam(message, len);
                     hasContext = true;
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -247,7 +248,8 @@ final class TransactionServerChannel {
         }
         final LocalTxn txn = server.getTxnMap().removeKey(context);
         if (txn == null) {
-            writeParamError(invId);
+            // nothing to commit!
+            writeSimpleResponse(M_RESP_UT_COMMIT, invId);
             return;
         }
         SecurityIdentity securityIdentity;
@@ -260,18 +262,18 @@ final class TransactionServerChannel {
             final Transaction transaction = txn.getTransaction();
             if (transaction != null) try {
                 transaction.commit();
-                writeSimpleResponse(M_RESP_UT_ROLLBACK, invId);
+                writeSimpleResponse(M_RESP_UT_COMMIT, invId);
             } catch (SystemException e) {
-                writeSimpleResponse(M_RESP_UT_ROLLBACK, invId, P_UT_SYS_EXC);
+                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_SYS_EXC);
                 return;
             } catch (HeuristicRollbackException e) {
-                writeSimpleResponse(M_RESP_UT_ROLLBACK, invId, P_UT_HRE_EXC);
+                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_HRE_EXC);
                 return;
             } catch (RollbackException e) {
-                writeSimpleResponse(M_RESP_UT_ROLLBACK, invId, P_UT_RB_EXC);
+                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_RB_EXC);
                 return;
             } catch (HeuristicMixedException e) {
-                writeSimpleResponse(M_RESP_UT_ROLLBACK, invId, P_UT_HME_EXC);
+                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_HME_EXC);
                 return;
             } else {
                 writeParamError(invId);
@@ -295,7 +297,7 @@ final class TransactionServerChannel {
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -340,7 +342,7 @@ final class TransactionServerChannel {
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -385,7 +387,7 @@ final class TransactionServerChannel {
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -430,7 +432,7 @@ final class TransactionServerChannel {
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -481,7 +483,7 @@ final class TransactionServerChannel {
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -528,7 +530,7 @@ final class TransactionServerChannel {
                     break;
                 }
                 case P_SEC_CONTEXT: {
-                    secContext = message.readInt();
+                    secContext = readIntParam(message, len);
                     hasSecContext = true;
                     break;
                 }
@@ -605,8 +607,8 @@ final class TransactionServerChannel {
                 return;
             }
             try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-                outputStream.writeByte(M_RESP_XA_RECOVER);
                 outputStream.writeShort(invId);
+                outputStream.writeByte(M_RESP_XA_RECOVER);
                 // maintain a "seen" set as some transaction managers don't treat recovery scanning as a cursor...
                 // once the "seen" set hasn't been modified by a scan request, the scan is done
                 Set<Xid> seen = new HashSet<Xid>();
@@ -662,8 +664,8 @@ final class TransactionServerChannel {
 
     void writeSimpleResponse(final int msgId, final int invId, final int param1) {
         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-            outputStream.writeByte(msgId);
             outputStream.writeShort(invId);
+            outputStream.writeByte(msgId);
             writeParam(param1, outputStream);
         } catch (IOException e) {
             log.outboundException(e);
@@ -672,8 +674,8 @@ final class TransactionServerChannel {
 
     void writeXaExceptionResponse(final int msgId, final int invId, final int errorCode) {
         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-            outputStream.writeByte(msgId);
             outputStream.writeShort(invId);
+            outputStream.writeByte(msgId);
             writeParam(P_XA_ERROR, outputStream, errorCode, SIGNED);
         } catch (IOException e) {
             log.outboundException(e);
@@ -682,8 +684,8 @@ final class TransactionServerChannel {
 
     void writeSimpleResponse(final int msgId, final int invId) {
         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-            outputStream.writeByte(msgId);
             outputStream.writeShort(invId);
+            outputStream.writeByte(msgId);
         } catch (IOException e) {
             log.outboundException(e);
         }
@@ -691,8 +693,8 @@ final class TransactionServerChannel {
 
     void writeParamError(final int invId) {
         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-            outputStream.writeByte(M_RESP_PARAM_ERROR);
             outputStream.writeShort(invId);
+            outputStream.writeByte(M_RESP_PARAM_ERROR);
         } catch (IOException e) {
             log.outboundException(e);
         }

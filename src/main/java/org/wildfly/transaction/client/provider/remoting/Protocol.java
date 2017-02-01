@@ -141,9 +141,9 @@ class Protocol {
         final int len;
         if (signed && val < 0) {
             // always write one sign byte if needed
-            len = 32 - Integer.numberOfLeadingZeros(~val) + 8 >> 8;
+            len = 32 - Integer.numberOfLeadingZeros(~val) + 8 >> 3;
         } else {
-            len = 32 - Integer.numberOfLeadingZeros(val) + 7 >> 8;
+            len = 32 - Integer.numberOfLeadingZeros(val) + 7 >> 3;
         }
         writeInt8(os, len);
         switch (len) {
@@ -157,9 +157,9 @@ class Protocol {
         final int len;
         if (signed && val < 0) {
             // always write one sign byte if needed
-            len = 32 - Integer.numberOfLeadingZeros(~val) + 8 >> 8;
+            len = 32 - Integer.numberOfLeadingZeros(~val) + 8 >> 3;
         } else {
-            len = 32 - Integer.numberOfLeadingZeros(val) + 7 >> 8;
+            len = 32 - Integer.numberOfLeadingZeros(val) + 7 >> 3;
         }
         writeInt8(os, len);
         switch (len) {
@@ -175,9 +175,9 @@ class Protocol {
         final int len;
         if (signed && val < 0) {
             // always write one byte for -1
-            len = 64 - Long.numberOfLeadingZeros(~val) + 8 >> 8;
+            len = 64 - Long.numberOfLeadingZeros(~val) + 8 >> 3;
         } else {
-            len = 64 - Long.numberOfLeadingZeros(val) + 7 >> 8;
+            len = 64 - Long.numberOfLeadingZeros(val) + 7 >> 3;
         }
         writeInt8(os, len);
         switch (len) {
@@ -240,21 +240,14 @@ class Protocol {
     public static int readIntParam(InputStream is, int len) throws IOException {
         int t = 0;
         for (int i = 0; i < len; i ++) {
-            t = t << 8 | readInt8(is);
+            t = t << 8 | readInt8(is) & 0xff;
         }
         return t;
     }
 
     public static String readStringParam(InputStream is, int len) throws IOException {
         byte[] b = new byte[len];
-        int t = 0;
-        while (t < len) {
-            int res = is.read(b);
-            if (res == -1) {
-                throw new EOFException();
-            }
-            t += res;
-        }
+        readFully(is, b);
         return new String(b, StandardCharsets.UTF_8);
     }
 

@@ -37,14 +37,12 @@ import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
  */
 @MetaInfServices
 public final class RemotingRemoteTransactionProvider implements RemoteTransactionProvider {
-    private final Endpoint endpoint;
     private final RemotingFallbackPeerProvider fallbackProvider;
 
     /**
      * Construct a new instance.
      */
     public RemotingRemoteTransactionProvider() {
-        this.endpoint = Endpoint.getCurrent();
         ServiceLoader<RemotingFallbackPeerProvider> loader = ServiceLoader.load(RemotingFallbackPeerProvider.class, RemotingRemoteTransactionProvider.class.getClassLoader());
         final Iterator<RemotingFallbackPeerProvider> iterator = loader.iterator();
         RemotingFallbackPeerProvider fallbackProvider = null;
@@ -59,10 +57,10 @@ public final class RemotingRemoteTransactionProvider implements RemoteTransactio
     }
 
     public boolean supportsScheme(final String scheme) {
-        return endpoint.isValidUriScheme(scheme);
+        return Endpoint.getCurrent().isValidUriScheme(scheme);
     }
 
     public RemoteTransactionPeer getPeerHandle(final URI location) throws SystemException {
-        return new RemotingRemoteTransactionPeer(location, endpoint, fallbackProvider);
+        return new RemotingRemoteTransactionPeer(location, Endpoint.getCurrent(), fallbackProvider);
     }
 }
