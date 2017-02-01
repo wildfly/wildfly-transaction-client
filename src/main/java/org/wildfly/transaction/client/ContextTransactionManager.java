@@ -120,7 +120,7 @@ public final class ContextTransactionManager implements TransactionManager {
 
     public void resume(final Transaction transaction) throws InvalidTransactionException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("transaction", transaction);
-        if (! (transaction instanceof AbstractTransaction)) {
+        if (transaction != null && ! (transaction instanceof AbstractTransaction)) {
             throw Log.log.notSupportedTransaction(transaction);
         }
         resume((AbstractTransaction) transaction);
@@ -129,7 +129,7 @@ public final class ContextTransactionManager implements TransactionManager {
     void resume(final AbstractTransaction transaction) throws IllegalStateException, SystemException {
         final State state = stateRef.get();
         if (state.transaction != null) throw Log.log.alreadyAssociated();
-        transaction.resume();
+        if (transaction != null) transaction.resume();
         state.transaction = transaction;
     }
 
