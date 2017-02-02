@@ -77,67 +77,77 @@ final class TransactionServerChannel {
         }
 
         public void handleMessage(final Channel channel, final MessageInputStream messageOriginal) {
+            channel.receiveMessage(this);
             try (MessageInputStream message = messageOriginal) {
                 final int invId = message.readUnsignedShort();
-                final int id = message.readUnsignedByte();
-                switch (id) {
-                    case M_CAPABILITY: {
-                        handleCapabilityMessage(message, invId);
-                        break;
-                    }
-
-                    case M_UT_ROLLBACK: {
-                        handleUserTxnRollback(message, invId);
-                        break;
-                    }
-                    case M_UT_COMMIT: {
-                        handleUserTxnCommit(message, invId);
-                        break;
-                    }
-
-                    case M_XA_ROLLBACK: {
-                        handleXaTxnRollback(message, invId);
-                        break;
-                    }
-                    case M_XA_BEFORE: {
-                        handleXaTxnBefore(message, invId);
-                        break;
-                    }
-                    case M_XA_PREPARE: {
-                        handleXaTxnPrepare(message, invId);
-                        break;
-                    }
-                    case M_XA_FORGET: {
-                        handleXaTxnForget(message, invId);
-                        break;
-                    }
-                    case M_XA_COMMIT: {
-                        handleXaTxnCommit(message, invId);
-                        break;
-                    }
-                    case M_XA_RECOVER: {
-                        handleXaTxnRecover(message, invId);
-                        break;
-                    }
-                    case M_XA_RB_ONLY: {
-                        handleXaTxnRollbackOnly(message, invId);
-                        break;
-                    }
-
-                    default: {
-                        try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
-                            outputStream.writeShort(invId);
-                            outputStream.writeByte(M_RESP_ERROR);
-                        } catch (IOException e) {
-                            log.outboundException(e);
+                try {
+                    final int id = message.readUnsignedByte();
+                    switch (id) {
+                        case M_CAPABILITY: {
+                            handleCapabilityMessage(message, invId);
+                            break;
                         }
-                        break;
+
+                        case M_UT_ROLLBACK: {
+                            handleUserTxnRollback(message, invId);
+                            break;
+                        }
+                        case M_UT_COMMIT: {
+                            handleUserTxnCommit(message, invId);
+                            break;
+                        }
+
+                        case M_XA_ROLLBACK: {
+                            handleXaTxnRollback(message, invId);
+                            break;
+                        }
+                        case M_XA_BEFORE: {
+                            handleXaTxnBefore(message, invId);
+                            break;
+                        }
+                        case M_XA_PREPARE: {
+                            handleXaTxnPrepare(message, invId);
+                            break;
+                        }
+                        case M_XA_FORGET: {
+                            handleXaTxnForget(message, invId);
+                            break;
+                        }
+                        case M_XA_COMMIT: {
+                            handleXaTxnCommit(message, invId);
+                            break;
+                        }
+                        case M_XA_RECOVER: {
+                            handleXaTxnRecover(message, invId);
+                            break;
+                        }
+                        case M_XA_RB_ONLY: {
+                            handleXaTxnRollbackOnly(message, invId);
+                            break;
+                        }
+
+                        default: {
+                            try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
+                                outputStream.writeShort(invId);
+                                outputStream.writeByte(M_RESP_ERROR);
+                            } catch (IOException e) {
+                                log.outboundException(e);
+                            }
+                            break;
+                        }
                     }
+                } catch (Throwable t) {
+                    try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
+                        outputStream.writeShort(invId);
+                        outputStream.writeByte(M_RESP_ERROR);
+                    } catch (IOException e) {
+                        log.outboundException(e);
+                    }
+                    throw t;
                 }
             } catch (IOException e) {
                 log.inboundException(e);
             }
-            channel.receiveMessage(this);
         }
 
         public void handleError(final Channel channel, final IOException error) {

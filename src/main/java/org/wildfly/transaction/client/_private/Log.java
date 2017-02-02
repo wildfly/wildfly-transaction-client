@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ServiceConfigurationError;
 
+import javax.transaction.HeuristicCommitException;
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
@@ -301,4 +302,28 @@ public interface Log extends BasicLogger {
 
     @Message(id = 73, value = "Unexpected provider transaction mismatch; expected %s, got %s")
     IllegalStateException unexpectedProviderTransactionMismatch(Transaction expected, Transaction actual);
+
+    @Message(id = 74, value = "Heuristic-mixed outcome")
+    XAException heuristicMixedXa(@Field int errorCode, @Cause HeuristicMixedException cause);
+
+    @Message(id = 75, value = "Heuristic-commit outcome")
+    XAException heuristicCommitXa(@Field int errorCode, @Cause HeuristicCommitException cause);
+
+    @Message(id = 76, value = "Transaction rolled back")
+    XAException rollbackXa(@Field int errorCode, @Cause RollbackException cause);
+
+    @Message(id = 77, value = "Heuristic-rollback outcome")
+    XAException heuristicRollbackXa(@Field int errorCode, @Cause HeuristicRollbackException cause);
+
+    @Message(id = 78, value = "Invalid transaction state")
+    XAException illegalStateXa(@Field int errorCode, @Cause IllegalStateException cause);
+
+    @Message(id = 79, value = "An unexpected resource manager error occurred")
+    XAException resourceManagerErrorXa(@Field int errorCode, @Cause Throwable cause);
+
+    @Message(id = 80, value = "Operation not allowed on non-imported transaction")
+    XAException notImportedXa(@Field int errorCode);
+
+    @Message(id = 81, value = "Invalid transaction state for operation")
+    XAException invalidTxStateXa(@Field int errorCode);
 }

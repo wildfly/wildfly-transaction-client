@@ -72,4 +72,15 @@ public final class ImportResult<T extends Transaction> {
     public boolean isNew() {
         return isNew;
     }
+
+    /**
+     * Get a copy of this import result, with a new transaction object.
+     *
+     * @param transaction the transaction object (must not be {@code null})
+     * @param <S> the new transaction type
+     * @return the new import result (not {@code null})
+     */
+    public <S extends Transaction> ImportResult<S> withTransaction(S transaction) {
+        return new ImportResult<S>(Assert.checkNotNullParam("transaction", transaction), control, isNew);
+    }
 }

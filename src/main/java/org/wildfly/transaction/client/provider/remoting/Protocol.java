@@ -230,6 +230,7 @@ class Protocol {
         //noinspection PointlessBooleanExpression,ConstantConditions
         assert Xid.MAXGTRIDSIZE <= 64 && Xid.MAXBQUALSIZE <= 64 && len < 256;
         // might be > 127
+        writeInt8(os, param);
         writePackedUnsignedInt32(os, len);
         writeInt32BE(os, formatId);
         writeInt8(os, gtid.length);

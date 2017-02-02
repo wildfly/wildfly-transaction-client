@@ -54,14 +54,6 @@ public interface XAImporter extends XARecoverable {
     Transaction findExistingTransaction(Xid xid) throws XAException;
 
     /**
-     * Perform before-completion processing.
-     *
-     * @param xid the transaction ID (must not be {@code null})
-     * @throws XAException if the import failed for some reason
-     */
-    void beforeComplete(Xid xid) throws XAException;
-
-    /**
      * Commit an imported (typically prepared) transaction.
      *
      * @param xid the transaction ID (must not be {@code null})

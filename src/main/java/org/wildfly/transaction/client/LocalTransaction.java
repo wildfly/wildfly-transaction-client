@@ -18,9 +18,15 @@
 
 package org.wildfly.transaction.client;
 
-import javax.transaction.*;
+import javax.transaction.HeuristicMixedException;
+import javax.transaction.HeuristicRollbackException;
+import javax.transaction.InvalidTransactionException;
+import javax.transaction.RollbackException;
+import javax.transaction.Synchronization;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.TransactionManager;
 import javax.transaction.xa.XAResource;
-import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client._private.Log;
@@ -33,12 +39,10 @@ import org.wildfly.transaction.client._private.Log;
 public final class LocalTransaction extends AbstractTransaction {
     private final LocalTransactionContext owner;
     private final Transaction transaction;
-    private final Xid importXid;
 
-    LocalTransaction(final LocalTransactionContext owner, final Transaction transaction, final Xid importXid) {
+    LocalTransaction(final LocalTransactionContext owner, final Transaction transaction) {
         this.owner = owner;
         this.transaction = transaction;
-        this.importXid = importXid;
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
@@ -50,7 +54,7 @@ public final class LocalTransaction extends AbstractTransaction {
         if (transaction.equals(transactionManager.getTransaction())) {
             transactionManager.commit();
         } else {
-            transaction.commit();
+            owner.getProvider().commitLocal(transaction);
         }
     }
 
@@ -63,7 +67,7 @@ public final class LocalTransaction extends AbstractTransaction {
         if (transaction.equals(transactionManager.getTransaction())) {
             transactionManager.rollback();
         } else {
-            transaction.rollback();
+            owner.getProvider().rollbackLocal(transaction);
         }
     }
 
@@ -73,6 +77,15 @@ public final class LocalTransaction extends AbstractTransaction {
 
     public int getStatus() throws SystemException {
         return transaction.getStatus();
+    }
+
+    /**
+     * Get the transaction timeout that was in force when the transaction began.
+     *
+     * @return the transaction timeout
+     */
+    public int getTransactionTimeout() {
+        return owner.getProvider().getTimeout(transaction);
     }
 
     public boolean enlistResource(final XAResource xaRes) throws RollbackException, IllegalStateException, SystemException {
@@ -96,8 +109,7 @@ public final class LocalTransaction extends AbstractTransaction {
      * @return the name of the node which initiated the transaction, or {@code null} if it could not be determined
      */
     public String getParentName() {
-        final Xid xid = this.importXid;
-        return xid == null ? owner.getProvider().getNodeName() : owner.getProvider().getNameFromXid(xid);
+        return owner.getProvider().getNameFromXid(owner.getProvider().getXid(transaction));
     }
 
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {

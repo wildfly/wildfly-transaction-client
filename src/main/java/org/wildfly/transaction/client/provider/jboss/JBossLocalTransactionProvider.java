@@ -18,8 +18,7 @@
 
 package org.wildfly.transaction.client.provider.jboss;
 
-import static java.lang.Math.max;
-import static java.lang.Math.min;
+import static java.lang.Long.signum;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -34,7 +33,6 @@ import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
 import javax.transaction.NotSupportedException;
 import javax.transaction.RollbackException;
-import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
@@ -46,6 +44,7 @@ import javax.transaction.xa.Xid;
 
 import com.arjuna.ats.arjuna.AtomicAction;
 import com.arjuna.ats.arjuna.common.arjPropertyManager;
+import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionImple;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
@@ -64,12 +63,14 @@ import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public final class JBossLocalTransactionProvider implements LocalTransactionProvider {
+    private static final Object ENTRY_KEY = new Object();
+
     private final int staleTransactionTime;
     private final ExtendedJBossXATerminator ext;
     private final XATerminator xt;
     private final TransactionManager tm;
     private final TransactionSynchronizationRegistry tsr;
-    private final XAImporter xi = new XAImporterImpl();
+    private final XAImporterImpl xi = new XAImporterImpl();
 
     JBossLocalTransactionProvider(final int staleTransactionTime, final XATerminator xt, final ExtendedJBossXATerminator ext, final TransactionManager tm, final TransactionSynchronizationRegistry tsr) {
         this.staleTransactionTime = staleTransactionTime;
@@ -98,7 +99,10 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         final Transaction suspended = tm.suspend();
         try {
             tm.begin();
-            return tm.suspend();
+            final Transaction transaction = tm.suspend();
+            SimpleXid gtid = SimpleXid.of(((TransactionImple) transaction).getTxId()).withoutBranch();
+            xi.registerNew(gtid, transaction, timeout);
+            return transaction;
         } catch (NotSupportedException e) {
             throw Log.log.unexpectedFailure(e);
         } catch (Throwable t) {
@@ -125,11 +129,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     public Object getResource(@NotNull final Transaction transaction, @NotNull final Object key) {
-        final Transaction transactionManagerTransaction = safeGetTransaction();
-        if (! transaction.equals(transactionManagerTransaction)) {
-            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
-        }
-        return tsr.getResource(key);
+        return ((TransactionImple) transaction).getTxLocalResource(key);
     }
 
     private Transaction safeGetTransaction() {
@@ -142,11 +142,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     public void putResource(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
-        final Transaction transactionManagerTransaction = safeGetTransaction();
-        if (! transaction.equals(transactionManagerTransaction)) {
-            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
-        }
-        tsr.putResource(key, value);
+        ((TransactionImple) transaction).putTxLocalResource(key, value);
     }
 
     public boolean getRollbackOnly(@NotNull final Transaction transaction) throws IllegalArgumentException {
@@ -159,11 +155,24 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
 
     @NotNull
     public Object getKey(@NotNull final Transaction transaction) throws IllegalArgumentException {
-        final Transaction transactionManagerTransaction = safeGetTransaction();
-        if (! transaction.equals(transactionManagerTransaction)) {
-            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
-        }
-        return tsr.getTransactionKey();
+        return ((TransactionImple) transaction).get_uid();
+    }
+
+    public void commitLocal(@NotNull final Transaction transaction) throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
+        getEntryFor(transaction, SimpleXid.of(getXid(transaction)).withoutBranch()).commitLocal();
+    }
+
+    public void rollbackLocal(@NotNull final Transaction transaction) throws IllegalStateException, SystemException {
+        getEntryFor(transaction, SimpleXid.of(getXid(transaction)).withoutBranch()).rollbackLocal();
+    }
+
+    public int getTimeout(@NotNull final Transaction transaction) {
+        return ((TransactionImple) transaction).getTimeout();
+    }
+
+    @NotNull
+    public Xid getXid(@NotNull final Transaction transaction) {
+        return ((TransactionImple) transaction).getTxId();
     }
 
     @NotNull
@@ -173,6 +182,19 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
             throw Log.log.noLocalTransactionProviderNodeName();
         }
         return nodeIdentifier;
+    }
+
+    Entry getEntryFor(Transaction transaction, SimpleXid gtid) {
+        Entry entry = (Entry) getResource(transaction, ENTRY_KEY);
+        if (entry == null) {
+            synchronized (ENTRY_KEY) {
+                entry = (Entry) getResource(transaction, ENTRY_KEY);
+                if (entry == null) {
+                    putResource(transaction, ENTRY_KEY, entry = new Entry(gtid, transaction));
+                }
+            }
+        }
+        return entry;
     }
 
     private static final int UID_LEN = 28;
@@ -197,118 +219,183 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return providerInterfaceType.isInstance(transaction) ? providerInterfaceType.cast(transaction) : null;
     }
 
+    static final int BIT_BEFORE_COMP = 1 << 0;
+    static final int BIT_PREPARE_OR_ROLLBACK = 1 << 1;
+    static final int BIT_COMMIT_OR_FORGET = 1 << 2;
+
+    static final class XidKey implements Comparable<XidKey> {
+        private final SimpleXid gtid;
+        private final long expiration;
+
+        XidKey(final SimpleXid gtid, final long expiration) {
+            this.gtid = gtid;
+            this.expiration = expiration;
+        }
+
+        public int compareTo(final XidKey o) {
+            final int res = signum(expiration - o.expiration);
+            return res == 0 ? gtid.compareTo(o.gtid) : res;
+        }
+    }
+
     final class Entry implements SubordinateTransactionControl {
-        private final SimpleXid xid;
-        private final ImportedTransaction transaction;
-        private final AtomicInteger timeoutRef;
+        private final SimpleXid gtid;
+        private final Transaction transaction;
+        private final AtomicInteger completionBits = new AtomicInteger(0);
         private final long start = System.nanoTime();
 
-        Entry(final SimpleXid xid, final ImportedTransaction transaction, final int timeout) {
-            this.xid = xid;
+        Entry(final SimpleXid gtid, final Transaction transaction) {
+            this.gtid = gtid;
             this.transaction = transaction;
-            this.timeoutRef = new AtomicInteger(timeout);
         }
 
-        SimpleXid getXid() {
-            return xid;
+        SimpleXid getGtid() {
+            return gtid;
         }
 
-        ImportedTransaction getTransaction() {
+        Transaction getTransaction() {
             return transaction;
         }
 
         int getTimeout() {
-            return timeoutRef.get();
+            return ((TransactionImple) transaction).getTimeout();
         }
 
-        long getRemainingNanos() {
-            return max(0L, timeoutRef.get() * 1_000_000_000L - max(0, System.nanoTime() - start));
-        }
-
-        void growTimeout(final int newTimeout) {
-            final AtomicInteger timeoutRef = this.timeoutRef;
-            int timeout;
+        void rollbackLocal() throws SystemException {
+            if (transaction instanceof ImportedTransaction) {
+                throw Log.log.rollbackOnImported();
+            }
+            int oldVal;
             do {
-                timeout = timeoutRef.get();
-                if (newTimeout <= timeout) {
-                    return;
+                oldVal = completionBits.get();
+                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0) {
+                    throw Log.log.invalidTxnState();
                 }
-            } while (! timeoutRef.compareAndSet(timeout, newTimeout));
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
+            transaction.rollback();
         }
 
-        void shrinkTimeout(final int newTimeout) {
-            final AtomicInteger timeoutRef = this.timeoutRef;
-            int timeout;
+        void commitLocal() throws HeuristicRollbackException, RollbackException, HeuristicMixedException, SystemException {
+            if (transaction instanceof ImportedTransaction) {
+                throw Log.log.commitOnImported();
+            }
+            int oldVal;
             do {
-                timeout = timeoutRef.get();
-                if (newTimeout >= timeout) {
-                    return;
+                oldVal = completionBits.get();
+                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0 || (oldVal & BIT_COMMIT_OR_FORGET) != 0) {
+                    throw Log.log.invalidTxnState();
                 }
-            } while (! timeoutRef.compareAndSet(timeout, newTimeout));
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_COMMIT_OR_FORGET | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
+            transaction.commit();
         }
 
         public void rollback() throws XAException {
-            final ImportedTransaction transaction = this.transaction;
-            if (transaction.activated()) try {
-                transaction.doRollback();
+            final Transaction transaction = this.transaction;
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+            }
+            int oldVal;
+            do {
+                oldVal = completionBits.get();
+                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0) {
+                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
+                }
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
+            final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
+            if (importedTransaction.activated()) try {
+                importedTransaction.doRollback();
             } catch (HeuristicCommitException e) {
-                throw new XAException(XAException.XA_HEURCOM);
+                throw Log.log.heuristicCommitXa(XAException.XA_HEURCOM, e);
             } catch (HeuristicMixedException e) {
-                throw new XAException(XAException.XA_HEURMIX);
+                throw Log.log.heuristicMixedXa(XAException.XA_HEURMIX, e);
             } catch (HeuristicRollbackException e) {
-                throw new XAException(XAException.XA_HEURRB);
-            } catch (SystemException | RuntimeException e) {
-                throw new XAException(XAException.XAER_RMERR);
+                throw Log.log.heuristicRollbackXa(XAException.XA_HEURRB, e);
+            } catch (IllegalStateException e) {
+                throw Log.log.illegalStateXa(XAException.XAER_NOTA, e);
+            } catch (Throwable /* RuntimeException | SystemException */ e) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
             } finally {
-                ext.removeImportedTransaction(xid);
+                ext.removeImportedTransaction(gtid);
             }
         }
 
         public void end(final int flags) throws XAException {
+            final Transaction transaction = this.transaction;
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+            }
             if (flags == XAResource.TMFAIL) {
-                try {
+                if (false /* JBTM-2846 */) try {
                     transaction.setRollbackOnly();
                 } catch (IllegalStateException e) {
-                    throw new XAException(XAException.XAER_NOTA);
-                } catch (RuntimeException | SystemException e) {
-                    throw new XAException(XAException.XAER_RMERR);
+                    throw Log.log.illegalStateXa(XAException.XAER_NOTA, e);
+                } catch (Throwable /* RuntimeException | SystemException */ e) {
+                    throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
                 }
             }
         }
 
         public void beforeCompletion() throws XAException {
+            final Transaction transaction = this.transaction;
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+            }
+            int oldVal;
+            do {
+                oldVal = completionBits.get();
+                if ((oldVal & BIT_BEFORE_COMP) != 0) {
+                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
+                }
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_BEFORE_COMP));
+            final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
-                if (! transaction.doBeforeCompletion()) {
+                if (! importedTransaction.doBeforeCompletion()) {
                     throw new XAException(XAException.XAER_RMERR);
                 }
             } catch (IllegalStateException e) {
-                throw new XAException(XAException.XAER_NOTA);
-            } catch (RuntimeException | SystemException e) {
-                throw new XAException(XAException.XAER_RMERR);
+                throw Log.log.illegalStateXa(XAException.XAER_NOTA, e);
+            } catch (Throwable /* RuntimeException | SystemException */ e) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
             }
         }
 
         public int prepare() throws XAException {
-            final ImportedTransaction transaction = this.transaction;
-            final int tpo = transaction.doPrepare();
+            final Transaction transaction = this.transaction;
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+            }
+            int oldVal;
+            do {
+                oldVal = completionBits.get();
+                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0) {
+                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
+                }
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
+            final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
+            final int tpo = importedTransaction.doPrepare();
             switch (tpo) {
                 case PREPARE_READONLY:
-                    ext.removeImportedTransaction(xid);
+                    ext.removeImportedTransaction(gtid);
                     return XAResource.XA_RDONLY;
 
                 case PREPARE_OK:
                     return XAResource.XA_OK;
 
                 case PREPARE_NOTOK:
+                    //noinspection TryWithIdenticalCatches
                     try {
-                        transaction.doRollback();
+                        importedTransaction.doRollback();
                     } catch (HeuristicCommitException | HeuristicMixedException | HeuristicRollbackException | SystemException e) {
                         // TODO: the old code removes the transaction here, but JBTM-427 implies that the TM should do this explicitly later; for now keep old behavior
-                        ext.removeImportedTransaction(xid);
+                        ext.removeImportedTransaction(gtid);
                         // JBTM-427; JTA doesn't allow heuristic codes on prepare :(
-                        throw initializeSuppressed(new XAException(XAException.XAER_RMERR), transaction, e);
+                        throw initializeSuppressed(Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e), importedTransaction);
+                    } catch (Throwable t) {
+                        // maybe still remove the transaction...
+                        ext.removeImportedTransaction(gtid);
+                        throw initializeSuppressed(Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, t), importedTransaction);
                     }
-                    throw initializeSuppressed(new XAException(XAException.XA_RBROLLBACK), transaction, null);
+                    throw initializeSuppressed(new XAException(XAException.XA_RBROLLBACK), importedTransaction);
 
                 case INVALID_TRANSACTION:
                     throw new XAException(XAException.XAER_NOTA);
@@ -319,42 +406,64 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
 
         public void forget() throws XAException {
+            final Transaction transaction = this.transaction;
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+            }
+            int oldVal;
+            do {
+                oldVal = completionBits.get();
+                if ((oldVal & BIT_COMMIT_OR_FORGET) != 0) {
+                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
+                }
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_COMMIT_OR_FORGET | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
+            final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
-                transaction.doForget();
+                importedTransaction.doForget();
             } catch (IllegalStateException e) {
-                throw new XAException(XAException.XAER_NOTA);
-            } catch (RuntimeException e) {
-                throw new XAException(XAException.XAER_RMERR);
+                throw Log.log.illegalStateXa(XAException.XAER_NOTA, e);
+            } catch (Throwable /* RuntimeException | SystemException */ e) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
             }
         }
 
         public void commit(final boolean onePhase) throws XAException {
-            final ImportedTransaction transaction = this.transaction;
+            final Transaction transaction = this.transaction;
+            if (! (transaction instanceof ImportedTransaction)) {
+                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+            }
+            int oldVal;
+            do {
+                oldVal = completionBits.get();
+                if (onePhase && (oldVal & BIT_PREPARE_OR_ROLLBACK) != 0 || (oldVal & BIT_COMMIT_OR_FORGET) != 0) {
+                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
+                }
+            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_COMMIT_OR_FORGET | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
+            final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
                 if (onePhase) {
-                    transaction.doOnePhaseCommit();
+                    importedTransaction.doOnePhaseCommit();
                 } else {
-                    if (! transaction.doCommit()) {
+                    if (! importedTransaction.doCommit()) {
                         throw new XAException(XAException.XA_RETRY);
                     }
                 }
             } catch (HeuristicMixedException e) {
-                throw initializeSuppressed(new XAException(XAException.XA_HEURMIX), transaction, e);
+                throw initializeSuppressed(Log.log.heuristicMixedXa(XAException.XA_HEURMIX, e), importedTransaction);
             } catch (RollbackException e) {
-                throw initializeSuppressed(new XAException(XAException.XA_RBROLLBACK), transaction, e);
+                throw initializeSuppressed(Log.log.rollbackXa(XAException.XA_RBROLLBACK, e), importedTransaction);
             } catch (HeuristicCommitException e) {
-                throw initializeSuppressed(new XAException(XAException.XA_HEURCOM), transaction, e);
+                throw initializeSuppressed(Log.log.heuristicCommitXa(XAException.XA_HEURCOM, e), importedTransaction);
             } catch (HeuristicRollbackException e) {
-                throw initializeSuppressed(new XAException(XAException.XA_HEURRB), transaction, e);
+                throw initializeSuppressed(Log.log.heuristicRollbackXa(XAException.XA_HEURRB, e), importedTransaction);
             } catch (IllegalStateException e) {
-                throw initializeSuppressed(new XAException(XAException.XAER_NOTA), transaction, e);
-            } catch (RuntimeException | SystemException e) {
-                throw initializeSuppressed(new XAException(XAException.XAER_RMERR), transaction, e);
+                throw initializeSuppressed(Log.log.illegalStateXa(XAException.XAER_NOTA, e), importedTransaction);
+            } catch (Throwable e) {
+                throw initializeSuppressed(Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e), importedTransaction);
             }
         }
 
-        private XAException initializeSuppressed(final XAException ex, final ImportedTransaction transaction, final Throwable cause) {
-            if (cause != null) ex.initCause(cause);
+        private XAException initializeSuppressed(final XAException ex, final ImportedTransaction transaction) {
             try {
                 if (transaction instanceof AtomicAction) {
                     for (Throwable t : ((AtomicAction) transaction).getDeferredThrowables()) {
@@ -369,132 +478,129 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     final class XAImporterImpl implements XAImporter {
-        @SuppressWarnings("serial")
-        private final Map<SimpleXid, Entry> knownImported = Collections.synchronizedMap(new LinkedHashMap<SimpleXid, Entry>() {
-            protected boolean removeEldestEntry(final Map.Entry<SimpleXid, Entry> eldest) {
-                return eldest.getValue().getRemainingNanos() == 0L;
-            }
-        });
+        // TODO: use a concurrent navigable collection, with a periodic flush
+        private final Map<SimpleXid, Entry> knownImported = Collections.synchronizedMap(new LinkedHashMap<SimpleXid, Entry>());
 
         @NotNull
-        public ImportResult<ImportedTransaction> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
-            final SimpleXid simpleXid = SimpleXid.of(xid);
-            final SimpleXid gtid = simpleXid.withoutBranch();
-            final int status;
-            Entry entry = knownImported.get(gtid);
-            if (entry != null) {
-                final ImportedTransaction transaction = entry.getTransaction();
-                try {
-                    status = transaction.getStatus();
-                } catch (SystemException e) {
-                    throw new XAException(XAException.XAER_RMFAIL);
-                }
-                if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
-                    entry.growTimeout(timeout);
-                } else {
-                    entry.shrinkTimeout(min(staleTransactionTime, timeout));
-                }
-                return new ImportResult<ImportedTransaction>(transaction, entry, false);
-            }
-            final TransactionImportResult result = ext.importTransaction(xid, timeout);
-            final ImportedTransaction transaction = result.getTransaction();
+        public ImportResult<Transaction> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
             try {
-                status = transaction.getStatus();
-            } catch (SystemException e) {
-                throw new XAException(XAException.XAER_RMFAIL);
+                final SimpleXid simpleXid = SimpleXid.of(xid);
+                final SimpleXid gtid = simpleXid.withoutBranch();
+                final int status;
+                final Map<SimpleXid, Entry> knownImported = this.knownImported;
+                synchronized (knownImported) {
+                    Entry entry = knownImported.get(gtid);
+                    if (entry != null) {
+                        return new ImportResult<Transaction>(entry.getTransaction(), entry, false);
+                    }
+                    final TransactionImportResult result = ext.importTransaction(xid, timeout);
+                    final ImportedTransaction transaction = result.getTransaction();
+                    final int newTimeout = timeout + staleTransactionTime;
+                    entry = getEntryFor(transaction, gtid);
+                    knownImported.put(gtid, entry);
+                    return new ImportResult<Transaction>(transaction, entry, result.isNewImportedTransaction());
+                }
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
-            final int newTimeout;
-            if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
-                newTimeout = timeout;
-            } else {
-                newTimeout = min(staleTransactionTime, timeout);
-            }
-            entry = new Entry(simpleXid, transaction, newTimeout);
-            knownImported.putIfAbsent(gtid, entry);
-            return new ImportResult<ImportedTransaction>(transaction, entry, result.isNewImportedTransaction());
         }
 
         public Transaction findExistingTransaction(final Xid xid) throws XAException {
-            final SimpleXid simpleXid = SimpleXid.of(xid);
-            final SimpleXid gtid = simpleXid.withoutBranch();
-            final int status;
-            Entry entry = knownImported.get(gtid);
-            if (entry != null) {
-                final Transaction transaction = entry.getTransaction();
-                try {
-                    status = transaction.getStatus();
-                } catch (SystemException e) {
-                    throw new XAException(XAException.XAER_RMFAIL);
-                }
-                if (status != Status.STATUS_ACTIVE && status != Status.STATUS_MARKED_ROLLBACK) {
-                    entry.shrinkTimeout(staleTransactionTime);
-                }
-                return entry.getTransaction();
-            }
-            final Transaction transaction = ext.getTransaction(xid);
-            if (transaction == null) {
-                return null;
-            }
-            if (! (transaction instanceof ImportedTransaction)) {
-                throw new XAException(XAException.XAER_NOTA);
-            }
-            knownImported.putIfAbsent(gtid, new Entry(simpleXid, (ImportedTransaction) transaction, staleTransactionTime));
-            return transaction;
-        }
-
-        public void beforeComplete(final Xid xid) throws XAException {
-            final ImportedTransaction importedTransaction = requireTxn(xid);
             try {
-                if (! importedTransaction.doBeforeCompletion()) {
-                    throw Log.log.beforeCompletionFailed(null, null);
+                final SimpleXid simpleXid = SimpleXid.of(xid);
+                final SimpleXid gtid = simpleXid.withoutBranch();
+                final int status;
+                Entry entry = knownImported.get(gtid);
+                if (entry != null) {
+                    return entry.getTransaction();
                 }
-            } catch (SystemException e) {
-                throw Log.log.beforeCompletionFailed(e, null);
+                final Transaction transaction = ext.getTransaction(xid);
+                if (transaction == null) {
+                    return null;
+                }
+                knownImported.putIfAbsent(gtid, entry = getEntryFor(transaction, gtid));
+                return entry.getTransaction();
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
         }
 
         public void commit(final Xid xid, final boolean onePhase) throws XAException {
-            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
-            if (entry != null) {
-                entry.commit(onePhase);
-            } else {
-                throw new XAException(XAException.XAER_NOTA);
+            try {
+                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+                if (entry != null) {
+                    entry.commit(onePhase);
+                } else {
+                    throw new XAException(XAException.XAER_NOTA);
+                }
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
         }
 
         public void forget(final Xid xid) throws XAException {
-            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
-            if (entry != null) {
-                entry.forget();
-            } else {
-                throw new XAException(XAException.XAER_NOTA);
+            try {
+                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+                if (entry != null) {
+                    entry.forget();
+                } else {
+                    throw new XAException(XAException.XAER_NOTA);
+                }
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
         }
 
         public int prepare(final Xid xid) throws XAException {
-            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
-            if (entry != null) {
-                return entry.prepare();
-            } else {
-                throw new XAException(XAException.XAER_NOTA);
+            try {
+                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+                if (entry != null) {
+                    return entry.prepare();
+                } else {
+                    throw new XAException(XAException.XAER_NOTA);
+                }
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
         }
 
         public void rollback(final Xid xid) throws XAException {
-            Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
-            if (entry != null) {
-                entry.rollback();
-            } else {
-                throw new XAException(XAException.XAER_NOTA);
+            try {
+                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+                if (entry != null) {
+                    entry.rollback();
+                } else {
+                    throw new XAException(XAException.XAER_NOTA);
+                }
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
         }
 
         @NotNull
         public Xid[] recover(final int flag, final String parentNodeName) throws XAException {
             try {
-                return ext.doRecover(null, parentNodeName);
-            } catch (NotSupportedException e) {
-                throw new XAException(XAException.XAER_RMFAIL);
+                try {
+                    return ext.doRecover(null, parentNodeName);
+                } catch (NotSupportedException e) {
+                    throw new XAException(XAException.XAER_RMFAIL);
+                }
+            } catch (XAException e) {
+                throw e;
+            } catch (Throwable t) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
         }
 
@@ -504,6 +610,10 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 throw Log.log.notActiveXA(XAException.XAER_NOTA);
             }
             return importedTransaction;
+        }
+
+        void registerNew(final SimpleXid gtid, final Transaction transaction, final int timeout) {
+            knownImported.put(gtid, getEntryFor(transaction, gtid));
         }
     }
 

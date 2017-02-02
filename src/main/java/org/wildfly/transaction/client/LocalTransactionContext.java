@@ -46,6 +46,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     private static final ContextManager<LocalTransactionContext> CONTEXT_MANAGER = new ContextManager<LocalTransactionContext>(LocalTransactionContext.class, "org.wildfly.transaction.client.context.local");
     private static final Supplier<LocalTransactionContext> PRIVILEGED_SUPPLIER = doPrivileged((PrivilegedAction<Supplier<LocalTransactionContext>>) CONTEXT_MANAGER::getPrivilegedSupplier);
 
+    private static final Object LOCAL_TXN_KEY = new Object();
+
     static {
         doPrivileged((PrivilegedAction<?>) () -> {
             CONTEXT_MANAGER.setGlobalDefault(new LocalTransactionContext(LocalTransactionProvider.EMPTY));
@@ -111,7 +113,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (newTransaction == null) {
             throw Log.log.providerCreatedNullTransaction();
         }
-        return new LocalTransaction(this, newTransaction, null);
+        return new LocalTransaction(this, newTransaction);
     }
 
     /**
@@ -128,8 +130,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         Assert.checkMinimumParameter("timeout", 0, timeout);
         XAImporter xaImporter = provider.getXAImporter();
         final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout);
-        final LocalTransaction transaction = new LocalTransaction(this, result.getTransaction(), xid);
-        return new ImportResult<LocalTransaction>(transaction, result.getControl(), result.isNew());
+        return result.withTransaction(getOrAttach(result.getTransaction(), xid));
     }
 
     /**
@@ -148,8 +149,22 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (transaction == null) {
             return false;
         }
-        state.transaction = new LocalTransaction(this, transaction, null);
+        state.transaction = getOrAttach(transaction, null);
         return true;
+    }
+
+    LocalTransaction getOrAttach(Transaction transaction, Xid xid) {
+        LocalTransaction txn = (LocalTransaction) provider.getResource(transaction, LOCAL_TXN_KEY);
+        if (txn == null) {
+            // use LOCAL_TXN_KEY so we can be reasonably assured that there will be no deadlock
+            synchronized (LOCAL_TXN_KEY) {
+                txn = (LocalTransaction) provider.getResource(transaction, LOCAL_TXN_KEY);
+                if (txn == null) {
+                    provider.putResource(transaction, LOCAL_TXN_KEY, txn = new LocalTransaction(this, transaction));
+                }
+            }
+        }
+        return txn;
     }
 
     /**

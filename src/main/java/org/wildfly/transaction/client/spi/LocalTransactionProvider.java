@@ -129,6 +129,46 @@ public interface LocalTransactionProvider extends TransactionProvider {
     @NotNull Object getKey(@NotNull Transaction transaction) throws IllegalArgumentException;
 
     /**
+     * Locally commit the given provider transaction.  A given provider transaction will only be committed by this
+     * method or {@link SubordinateTransactionControl#commit(boolean)}.
+     *
+     * @param transaction the transaction (not {@code null})
+     * @throws RollbackException if the local commit operation throws this exception
+     * @throws HeuristicMixedException if the local commit operation throws this exception
+     * @throws HeuristicRollbackException if the local commit operation throws this exception
+     * @throws SecurityException if the local commit operation throws this exception
+     * @throws IllegalStateException if the local commit operation throws this exception
+     * @throws SystemException if the local commit operation throws this exception
+     */
+    void commitLocal(@NotNull Transaction transaction) throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException;
+
+    /**
+     * Locally roll back the given provider transaction.  A given provider transaction will only be rolled back by this
+     * method or {@link SubordinateTransactionControl#rollback()}.
+     *
+     * @param transaction the transaction (not {@code null})
+     * @throws IllegalStateException if the local commit operation throws this exception
+     * @throws SystemException if the local commit operation throws this exception
+     */
+    void rollbackLocal(@NotNull Transaction transaction) throws IllegalStateException, SystemException;
+
+    /**
+     * Get the configured timeout of the given transaction (not the remaining time).
+     *
+     * @param transaction the transaction (not {@code null})
+     * @return the number of seconds remaining
+     */
+    int getTimeout(@NotNull Transaction transaction);
+
+    /**
+     * Get the transaction ID of the given transaction.
+     *
+     * @param transaction the transaction (not {@code null})
+     * @return the transaction ID (must not be {@code null})
+     */
+    @NotNull Xid getXid(@NotNull Transaction transaction);
+
+    /**
      * Get the unique node name of this provider.
      *
      * @return the node name (must not be {@code null})
@@ -210,23 +250,11 @@ public interface LocalTransactionProvider extends TransactionProvider {
                 return null;
             }
 
-            public void beforeComplete(final Xid xid) throws XAException {
-                throw Log.log.noTransactionXa(XAException.XAER_NOTA);
-            }
-
             public void commit(final Xid xid, final boolean onePhase) throws XAException {
                 throw Log.log.noTransactionXa(XAException.XAER_NOTA);
             }
 
             public void forget(final Xid xid) throws XAException {
-                throw Log.log.noTransactionXa(XAException.XAER_NOTA);
-            }
-
-            public int prepare(final Xid xid) throws XAException {
-                throw Log.log.noTransactionXa(XAException.XAER_NOTA);
-            }
-
-            public void rollback(final Xid xid) throws XAException {
                 throw Log.log.noTransactionXa(XAException.XAER_NOTA);
             }
 
@@ -274,6 +302,23 @@ public interface LocalTransactionProvider extends TransactionProvider {
         @NotNull
         public Object getKey(@NotNull final Transaction transaction) throws IllegalArgumentException {
             throw new IllegalArgumentException(Log.log.transactionNotAssociatedWithThisProvider().getMessage());
+        }
+
+        public void commitLocal(@NotNull final Transaction transaction) throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
+            throw Log.log.noTransaction();
+        }
+
+        public void rollbackLocal(@NotNull final Transaction transaction) throws IllegalStateException, SystemException {
+            throw Log.log.noTransaction();
+        }
+
+        @NotNull
+        public Xid getXid(@NotNull final Transaction transaction) {
+            throw Log.log.noTransaction();
+        }
+
+        public int getTimeout(@NotNull final Transaction transaction) {
+            throw Log.log.noTransaction();
         }
 
         @NotNull

@@ -18,6 +18,9 @@
 
 package org.wildfly.transaction.client;
 
+import static java.lang.Integer.signum;
+import static java.lang.Math.min;
+
 import java.util.Arrays;
 
 import javax.transaction.xa.Xid;
@@ -27,7 +30,7 @@ import javax.transaction.xa.Xid;
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class SimpleXid implements Xid {
+public final class SimpleXid implements Xid, Comparable<SimpleXid> {
 
     /**
      * An empty XID array.
@@ -95,5 +98,25 @@ public final class SimpleXid implements Xid {
 
     public static SimpleXid of(final Xid xid) {
         return xid instanceof SimpleXid ? (SimpleXid) xid : new SimpleXid(xid.getFormatId(), xid.getGlobalTransactionId(), xid.getBranchQualifier());
+    }
+
+    public int compareTo(final SimpleXid o) {
+        int res = signum(formatId - o.formatId);
+        if (res == 0) res = compareByteArrays(globalId, o.globalId);
+        if (res == 0) res = compareByteArrays(branchId, o.branchId);
+        assert (res == 0) == equals(o);
+        return res;
+    }
+
+    private static int compareByteArrays(byte[] a1, byte[] a2) {
+        final int l1 = a1.length;
+        final int l2 = a2.length;
+        int minLen = min(l1, l2);
+        int res;
+        for (int i = 0; i < minLen; i ++) {
+            res = signum((a1[i] & 0xff) - (a2[i] & 0xff));
+            if (res != 0) return res;
+        }
+        return signum(l1 - l2);
     }
 }
