@@ -19,11 +19,17 @@
 package org.wildfly.transaction.client.provider.jboss;
 
 import static java.lang.Long.signum;
+import static java.security.AccessController.doPrivileged;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.security.PrivilegedAction;
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.resource.spi.XATerminator;
@@ -33,6 +39,7 @@ import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
 import javax.transaction.NotSupportedException;
 import javax.transaction.RollbackException;
+import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
@@ -44,10 +51,13 @@ import javax.transaction.xa.Xid;
 
 import com.arjuna.ats.arjuna.AtomicAction;
 import com.arjuna.ats.arjuna.common.arjPropertyManager;
+import com.arjuna.ats.internal.jta.resources.arjunacore.SynchronizationImple;
 import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionImple;
+import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
+import org.jboss.tm.TransactionTimeoutConfiguration;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.ImportResult;
@@ -71,6 +81,8 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     private final TransactionManager tm;
     private final TransactionSynchronizationRegistry tsr;
     private final XAImporterImpl xi = new XAImporterImpl();
+    private final ConcurrentSkipListSet<XidKey> timeoutSet = new ConcurrentSkipListSet<>();
+    private final ConcurrentMap<SimpleXid, Entry> known = new ConcurrentHashMap<>();
 
     JBossLocalTransactionProvider(final int staleTransactionTime, final XATerminator xt, final ExtendedJBossXATerminator ext, final TransactionManager tm, final TransactionSynchronizationRegistry tsr) {
         this.staleTransactionTime = staleTransactionTime;
@@ -96,21 +108,44 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
 
     @NotNull
     public Transaction createNewTransaction(final int timeout) throws SystemException, SecurityException {
-        final Transaction suspended = tm.suspend();
+        final TransactionManager tm = this.tm;
+        final int oldTimeout;
+        if (tm instanceof TransactionTimeoutConfiguration) {
+            oldTimeout = ((TransactionTimeoutConfiguration) tm).getTransactionTimeout();
+        } else if (tm instanceof TransactionManagerImple) {
+            oldTimeout = ((TransactionManagerImple) tm).getTimeout();
+        } else {
+            oldTimeout = 0;
+        }
+        tm.setTransactionTimeout(timeout);
         try {
-            tm.begin();
-            final Transaction transaction = tm.suspend();
-            SimpleXid gtid = SimpleXid.of(((TransactionImple) transaction).getTxId()).withoutBranch();
-            xi.registerNew(gtid, transaction, timeout);
-            return transaction;
-        } catch (NotSupportedException e) {
-            throw Log.log.unexpectedFailure(e);
-        } catch (Throwable t) {
-            if (suspended != null) try {
-                tm.resume(suspended);
-            } catch (InvalidTransactionException e) {
-                e.addSuppressed(t);
+            final Transaction suspended = tm.suspend();
+            try {
+                tm.begin();
+                final Transaction transaction = tm.suspend();
+                SimpleXid gtid = SimpleXid.of(((TransactionImple) transaction).getTxId()).withoutBranch();
+                known.put(gtid, getEntryFor(transaction, gtid));
+                // Narayana doesn't actually throw exceptions here so this should be fine
+                tm.setTransactionTimeout(oldTimeout);
+                return transaction;
+            } catch (NotSupportedException e) {
                 throw Log.log.unexpectedFailure(e);
+            } catch (Throwable t) {
+                if (suspended != null) try {
+                    tm.resume(suspended);
+                } catch (InvalidTransactionException e) {
+                    e.addSuppressed(t);
+                    throw Log.log.unexpectedFailure(e);
+                }
+                throw t;
+            }
+        } catch (Throwable t) {
+            try {
+                tm.setTransactionTimeout(oldTimeout);
+            } catch (Throwable t2) {
+                // Narayana doesn't actually throw exceptions here so this should be fine
+                t2.addSuppressed(t);
+                throw t2;
             }
             throw t;
         }
@@ -120,12 +155,30 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return transaction instanceof ImportedTransaction;
     }
 
+    private static final MethodHandle registerSynchronizationImple;
+
+    static {
+        registerSynchronizationImple = doPrivileged((PrivilegedAction<MethodHandle>) () -> {
+            try {
+                final Method declaredMethod = TransactionImple.class.getDeclaredMethod("registerSynchronizationImple", SynchronizationImple.class);
+                declaredMethod.setAccessible(true);
+                final MethodHandles.Lookup lookup = MethodHandles.lookup();
+                return lookup.unreflect(declaredMethod);
+            } catch (Throwable t) {
+                throw Log.log.unexpectedFailure(t);
+            }
+        });
+    }
+
     public void registerInterposedSynchronization(@NotNull final Transaction transaction, @NotNull final Synchronization sync) throws IllegalArgumentException {
-        final Transaction transactionManagerTransaction = safeGetTransaction();
-        if (! transaction.equals(transactionManagerTransaction)) {
-            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        // this is silly but for some reason they've locked this API up tight
+        try {
+            registerSynchronizationImple.invoke((TransactionImple) transaction, new SynchronizationImple(sync, true));
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw Log.log.unexpectedFailure(t);
         }
-        tsr.registerInterposedSynchronization(sync);
     }
 
     public Object getResource(@NotNull final Transaction transaction, @NotNull final Object key) {
@@ -146,11 +199,11 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     public boolean getRollbackOnly(@NotNull final Transaction transaction) throws IllegalArgumentException {
-        final Transaction transactionManagerTransaction = safeGetTransaction();
-        if (! transaction.equals(transactionManagerTransaction)) {
-            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManagerTransaction);
+        try {
+            return transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK;
+        } catch (SystemException e) {
+            throw Log.log.unexpectedFailure(e);
         }
-        return tsr.getRollbackOnly();
     }
 
     @NotNull
@@ -186,15 +239,44 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
 
     Entry getEntryFor(Transaction transaction, SimpleXid gtid) {
         Entry entry = (Entry) getResource(transaction, ENTRY_KEY);
-        if (entry == null) {
-            synchronized (ENTRY_KEY) {
-                entry = (Entry) getResource(transaction, ENTRY_KEY);
-                if (entry == null) {
-                    putResource(transaction, ENTRY_KEY, entry = new Entry(gtid, transaction));
+        if (entry != null) {
+            return entry;
+        }
+        synchronized (ENTRY_KEY) {
+            entry = (Entry) getResource(transaction, ENTRY_KEY);
+            if (entry != null) {
+                return entry;
+            }
+            putResource(transaction, ENTRY_KEY, entry = new Entry(gtid, transaction));
+        }
+        int lifetime = getTimeout(transaction) + staleTransactionTime;
+        final long timeTick = getTimeTick();
+        // this is the maximum amount of time we expect any potential incoming peer might know about this transaction ID
+        timeoutSet.add(new XidKey(gtid, timeTick + lifetime * 1_000_000_000L));
+        registerInterposedSynchronization(transaction, new Synchronization() {
+            public void beforeCompletion() {
+                // no operation
+            }
+
+            public void afterCompletion(final int status) {
+                // let the TM do some heavy lifting for us
+                final long timeTick = getTimeTick();
+                // clear off all expired entries
+                final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
+                final Iterator<XidKey> iterator = timeoutSet.headSet(new XidKey(SimpleXid.EMPTY, timeTick)).iterator();
+                while (iterator.hasNext()) {
+                    known.remove(iterator.next().gtid);
+                    iterator.remove();
                 }
             }
-        }
+        });
         return entry;
+    }
+
+    private static final long TIME_START = System.nanoTime();
+
+    long getTimeTick() {
+        return System.nanoTime() - TIME_START;
     }
 
     private static final int UID_LEN = 28;
@@ -478,8 +560,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     }
 
     final class XAImporterImpl implements XAImporter {
-        // TODO: use a concurrent navigable collection, with a periodic flush
-        private final Map<SimpleXid, Entry> knownImported = Collections.synchronizedMap(new LinkedHashMap<SimpleXid, Entry>());
 
         @NotNull
         public ImportResult<Transaction> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
@@ -487,17 +567,19 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 final SimpleXid simpleXid = SimpleXid.of(xid);
                 final SimpleXid gtid = simpleXid.withoutBranch();
                 final int status;
-                final Map<SimpleXid, Entry> knownImported = this.knownImported;
-                synchronized (knownImported) {
-                    Entry entry = knownImported.get(gtid);
-                    if (entry != null) {
-                        return new ImportResult<Transaction>(entry.getTransaction(), entry, false);
-                    }
-                    final TransactionImportResult result = ext.importTransaction(xid, timeout);
-                    final ImportedTransaction transaction = result.getTransaction();
-                    final int newTimeout = timeout + staleTransactionTime;
-                    entry = getEntryFor(transaction, gtid);
-                    knownImported.put(gtid, entry);
+                final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
+                Entry entry = known.get(gtid);
+                if (entry != null) {
+                    return new ImportResult<Transaction>(entry.getTransaction(), entry, false);
+                }
+                final TransactionImportResult result = ext.importTransaction(xid, timeout);
+                final ImportedTransaction transaction = result.getTransaction();
+                entry = getEntryFor(transaction, gtid);
+                final Entry appearing = known.putIfAbsent(gtid, entry);
+                if (appearing != null) {
+                    // even if someone else beat us to the map, we still might have imported first... preserve the original Entry for economy though
+                    return new ImportResult<Transaction>(transaction, appearing, result.isNewImportedTransaction());
+                } else {
                     return new ImportResult<Transaction>(transaction, entry, result.isNewImportedTransaction());
                 }
             } catch (XAException e) {
@@ -512,7 +594,8 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 final SimpleXid simpleXid = SimpleXid.of(xid);
                 final SimpleXid gtid = simpleXid.withoutBranch();
                 final int status;
-                Entry entry = knownImported.get(gtid);
+                final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
+                Entry entry = known.get(gtid);
                 if (entry != null) {
                     return entry.getTransaction();
                 }
@@ -520,8 +603,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 if (transaction == null) {
                     return null;
                 }
-                knownImported.putIfAbsent(gtid, entry = getEntryFor(transaction, gtid));
-                return entry.getTransaction();
+                return known.computeIfAbsent(gtid, g -> getEntryFor(transaction, g)).getTransaction();
             } catch (XAException e) {
                 throw e;
             } catch (Throwable t) {
@@ -531,7 +613,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
 
         public void commit(final Xid xid, final boolean onePhase) throws XAException {
             try {
-                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+                Entry entry = known.get(SimpleXid.of(xid).withoutBranch());
                 if (entry != null) {
                     entry.commit(onePhase);
                 } else {
@@ -546,39 +628,9 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
 
         public void forget(final Xid xid) throws XAException {
             try {
-                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
+                Entry entry = known.get(SimpleXid.of(xid).withoutBranch());
                 if (entry != null) {
                     entry.forget();
-                } else {
-                    throw new XAException(XAException.XAER_NOTA);
-                }
-            } catch (XAException e) {
-                throw e;
-            } catch (Throwable t) {
-                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
-            }
-        }
-
-        public int prepare(final Xid xid) throws XAException {
-            try {
-                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
-                if (entry != null) {
-                    return entry.prepare();
-                } else {
-                    throw new XAException(XAException.XAER_NOTA);
-                }
-            } catch (XAException e) {
-                throw e;
-            } catch (Throwable t) {
-                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
-            }
-        }
-
-        public void rollback(final Xid xid) throws XAException {
-            try {
-                Entry entry = knownImported.get(SimpleXid.of(xid).withoutBranch());
-                if (entry != null) {
-                    entry.rollback();
                 } else {
                     throw new XAException(XAException.XAER_NOTA);
                 }
@@ -610,10 +662,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 throw Log.log.notActiveXA(XAException.XAER_NOTA);
             }
             return importedTransaction;
-        }
-
-        void registerNew(final SimpleXid gtid, final Transaction transaction, final int timeout) {
-            knownImported.put(gtid, getEntryFor(transaction, gtid));
         }
     }
 

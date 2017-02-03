@@ -32,6 +32,8 @@ import javax.transaction.xa.Xid;
  */
 public final class SimpleXid implements Xid, Comparable<SimpleXid> {
 
+    private static final byte[] NO_BYTES = new byte[0];
+
     /**
      * An empty XID array.
      */
@@ -42,7 +44,10 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
      */
     public static final SimpleXid[] NO_SIMPLE_XIDS = new SimpleXid[0];
 
-    private static final byte[] NO_BYTES = new byte[0];
+    /**
+     * A completely empty {@code SimpleXid}, which sorts below all other {@code SimpleXid} instances.
+     */
+    public static final SimpleXid EMPTY = new SimpleXid(0, NO_BYTES, NO_BYTES, false);
 
     private final int formatId;
     private final byte[] globalId;

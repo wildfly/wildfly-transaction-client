@@ -41,6 +41,7 @@ public final class LocalTransaction extends AbstractTransaction {
     private final Transaction transaction;
 
     LocalTransaction(final LocalTransactionContext owner, final Transaction transaction) {
+        super();
         this.owner = owner;
         this.transaction = transaction;
     }
@@ -79,11 +80,6 @@ public final class LocalTransaction extends AbstractTransaction {
         return transaction.getStatus();
     }
 
-    /**
-     * Get the transaction timeout that was in force when the transaction began.
-     *
-     * @return the transaction timeout
-     */
     public int getTransactionTimeout() {
         return owner.getProvider().getTimeout(transaction);
     }

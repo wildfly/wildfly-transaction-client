@@ -18,9 +18,6 @@
 
 package org.wildfly.transaction.client;
 
-import static java.lang.Math.max;
-import static java.lang.Math.min;
-
 import java.net.URI;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -49,9 +46,9 @@ public final class RemoteTransaction extends AbstractTransaction {
     private final Object key = new Key();
     private final SimpleTransactionControl control;
     private final int timeout;
-    private final long startTime = System.nanoTime();
 
     RemoteTransaction(final SimpleTransactionControl control, final URI location, final int timeout) {
+        super();
         stateRef = new AtomicReference<>(new Active());
         this.location = location;
         this.control = control;
@@ -82,6 +79,10 @@ public final class RemoteTransaction extends AbstractTransaction {
 
     void verifyAssociation() {
         // no operation
+    }
+
+    public int getTransactionTimeout() {
+        return timeout;
     }
 
     public <T> T getProviderInterface(final Class<T> providerInterfaceType) {
@@ -126,10 +127,6 @@ public final class RemoteTransaction extends AbstractTransaction {
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {
         Assert.checkNotNullParam("sync", sync);
         stateRef.get().registerInterposedSynchronization(sync);
-    }
-
-    public int getRemainingTime() {
-        return timeout - (int) max(0, min(timeout, (System.nanoTime() - startTime) / 1_000_000L));
     }
 
     public int hashCode() {

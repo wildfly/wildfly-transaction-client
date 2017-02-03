@@ -94,7 +94,7 @@ public interface XAOutflowHandle {
 
             public int getRemainingTime() {
                 long elapsed = System.nanoTime() - start;
-                return timeout - (int) max(timeout, elapsed / 1_000_000L);
+                return timeout - (int) max(timeout, elapsed / 1_000_000_000L);
             }
 
             public void forgetEnlistment() {

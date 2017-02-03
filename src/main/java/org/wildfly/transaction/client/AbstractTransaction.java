@@ -18,6 +18,9 @@
 
 package org.wildfly.transaction.client;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -38,6 +41,7 @@ public abstract class AbstractTransaction implements Transaction {
     private static final TransactionPermission ASSOCIATION_LISTENER_PERMISSION = TransactionPermission.forName("registerAssociationListener");
 
     private final Object outflowLock = new Object();
+    private final long start = System.nanoTime();
     final Set<AssociationListener> associationListeners = new CopyOnWriteArraySet<>();
 
     AbstractTransaction() {
@@ -64,6 +68,24 @@ public abstract class AbstractTransaction implements Transaction {
     abstract void resume() throws SystemException;
 
     abstract void verifyAssociation();
+
+    /**
+     * Get the transaction timeout that was in force when the transaction began.
+     *
+     * @return the transaction timeout
+     */
+    public abstract int getTransactionTimeout();
+
+    /**
+     * Get an estimate of the amount of time remaining in this transaction.
+     *
+     * @return the estimate in seconds, or 0 if the transaction is estimated to have expired
+     */
+    public final int getEstimatedRemainingTime() {
+        final long elapsed = System.nanoTime() - start;
+        final int transactionTimeout = getTransactionTimeout();
+        return transactionTimeout - (int) min((max(elapsed, 0L) + 999_999_999L) / 1_000_000_000L, transactionTimeout);
+    }
 
     /**
      * Get a provider-specific interface from this transaction.
