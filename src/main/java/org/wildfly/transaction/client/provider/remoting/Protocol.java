@@ -253,12 +253,18 @@ class Protocol {
     }
 
     public static SimpleXid readXid(InputStream is, int len) throws IOException {
-        final LimitedInputStream lis = new LimitedInputStream(is, len);
-        final int formatId = readPackedUnsignedInt32(lis);
-        final byte[] gtid = new byte[readInt8(lis)];
-        readFully(lis, gtid);
-        final byte[] bq = new byte[len - 5 - gtid.length];
-        readFully(lis, bq);
+        final int formatId = readInt32BE(is);
+        len -= 4;
+        int gtidLen = readInt8(is);
+        len --;
+        if (len < gtidLen) {
+            throw new EOFException();
+        }
+        final byte[] gtid = gtidLen == 0 ? SimpleXid.NO_BYTES : new byte[gtidLen];
+        readFully(is, gtid);
+        len -= gtidLen;
+        final byte[] bq = len == 0 ? SimpleXid.NO_BYTES : new byte[len];
+        readFully(is, bq);
         return new SimpleXid(formatId, gtid, bq);
     }
 }

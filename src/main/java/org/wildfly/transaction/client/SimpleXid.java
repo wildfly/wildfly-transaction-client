@@ -32,7 +32,10 @@ import javax.transaction.xa.Xid;
  */
 public final class SimpleXid implements Xid, Comparable<SimpleXid> {
 
-    private static final byte[] NO_BYTES = new byte[0];
+    /**
+     * An empty byte array used when there is an empty XID component.
+     */
+    public static final byte[] NO_BYTES = new byte[0];
 
     /**
      * An empty XID array.
