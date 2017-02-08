@@ -18,8 +18,11 @@
 
 package org.wildfly.transaction.client.provider.remoting;
 
+import static java.security.AccessController.doPrivileged;
+
 import java.io.IOException;
 import java.net.URI;
+import java.security.PrivilegedAction;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -37,6 +40,7 @@ import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
+import org.xnio.IoFuture;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -56,7 +60,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
 
     @NotNull
     RemotingOperations getOperations() throws IOException {
-        final Connection connection = endpoint.getConnection(location, "jta", "jboss").get();
+        final Connection connection = doPrivileged((PrivilegedAction<IoFuture<Connection>>) () -> endpoint.getConnection(location, "jta", "jboss")).get();
         final Attachments attachments = connection.getAttachments();
         RemotingOperations operations = attachments.getAttachment(key);
         if (operations != null) {
