@@ -31,7 +31,6 @@ import javax.transaction.UserTransaction;
 import org.wildfly.naming.client.AbstractContext;
 import org.wildfly.naming.client.CloseableNamingEnumeration;
 import org.wildfly.naming.client.NamingProvider;
-import org.wildfly.naming.client.util.FastHashtable;
 import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.ContextTransactionSynchronizationRegistry;
 import org.wildfly.transaction.client.LocalUserTransaction;
@@ -47,7 +46,7 @@ class TxnNamingContext extends AbstractContext {
     private static final String TRANSACTION_SYNCHRONIZATION_REGISTRY = "TransactionSynchronizationRegistry";
     private final NamingProvider namingProvider;
 
-    TxnNamingContext(final NamingProvider namingProvider, final FastHashtable<String, Object> env) {
+    TxnNamingContext(final NamingProvider namingProvider) {
         this.namingProvider = namingProvider;
     }
 

@@ -38,14 +38,6 @@ final class SerializedXAResource implements Serializable {
         this.parentName = parentName;
     }
 
-    URI getLocation() {
-        return location;
-    }
-
-    String getParentName() {
-        return parentName;
-    }
-
     Object readResolve() {
         return new SubordinateXAResource(location, FL_COMMITTED | FL_CONFIRMED, parentName);
     }

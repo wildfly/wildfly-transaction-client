@@ -21,6 +21,8 @@ package org.wildfly.transaction.client;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class OutflowHandleManager {
+    private OutflowHandleManager() {
+    }
 
     /**
      * If this flag is set, then we're committed and cannot do any more outflow.

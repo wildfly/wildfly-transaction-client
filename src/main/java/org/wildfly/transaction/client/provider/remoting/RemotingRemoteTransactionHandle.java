@@ -19,7 +19,6 @@
 package org.wildfly.transaction.client.provider.remoting;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.transaction.HeuristicMixedException;
@@ -49,7 +48,6 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
     private final int id;
     private final SimpleIdResolver resolver = connection -> {
         Assert.checkNotNullParam("connection", connection);
-        final URI peerURI = connection.getPeerURI();
         if (getConnection() != connection) {
             throw Log.log.invalidTransactionConnection();
         }
@@ -63,10 +61,6 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
 
     public int getId() {
         return id;
-    }
-
-    public URI getLocation() {
-        return channel.getLocation();
     }
 
     public void disconnect() {

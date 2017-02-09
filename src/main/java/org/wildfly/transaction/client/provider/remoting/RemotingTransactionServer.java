@@ -24,14 +24,12 @@ import java.io.IOException;
 
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
-import javax.transaction.xa.XAException;
 
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.Connection;
 import org.jboss.remoting3._private.IntIndexHashMap;
 import org.jboss.remoting3._private.IntIndexMap;
 import org.wildfly.common.annotation.NotNull;
-import org.wildfly.common.function.ExceptionSupplier;
 import org.wildfly.transaction.client.LocalTransaction;
 
 /**
@@ -42,12 +40,10 @@ import org.wildfly.transaction.client.LocalTransaction;
 public final class RemotingTransactionServer {
 
     private final RemotingTransactionService transactionService;
-    private final Connection connection;
     private final IntIndexMap<LocalTxn> txns = new IntIndexHashMap<LocalTxn>(LocalTxn::getId);
 
     RemotingTransactionServer(final RemotingTransactionService transactionService, final Connection connection) {
         this.transactionService = transactionService;
-        this.connection = connection;
         connection.addCloseHandler(this::handleClosed);
     }
 
@@ -133,10 +129,6 @@ public final class RemotingTransactionServer {
 
         LocalTransaction getTransaction() {
             return transaction;
-        }
-
-        ExceptionSupplier<LocalTransaction, XAException> getTransactionSupplier() {
-            return this::getTransaction;
         }
 
         int getId() {

@@ -42,5 +42,5 @@ public interface RemotingOperations {
 
     Xid[] recover(int flag, String parentName) throws XAException;
 
-    SimpleTransactionControl begin(int timeout) throws SystemException;
+    SimpleTransactionControl begin() throws SystemException;
 }

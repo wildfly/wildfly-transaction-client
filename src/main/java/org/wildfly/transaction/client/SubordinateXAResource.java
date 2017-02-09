@@ -163,7 +163,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
             // the remaining timeout is equal to the configured timeout minus the time since start() was called, but no less than 1
             timeout = (int) min(max(1L, max(0L, System.nanoTime() - startTime) - configuredTimeout * 1_000_000L), Integer.MAX_VALUE);
         }
-        return provider.getPeerHandleForXa(location).lookupXid(xid, timeout);
+        return provider.getPeerHandleForXa(location).lookupXid(xid);
     }
 
     private RemoteTransactionProvider getProvider() {

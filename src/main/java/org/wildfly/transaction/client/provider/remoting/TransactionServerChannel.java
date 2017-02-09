@@ -483,7 +483,6 @@ final class TransactionServerChannel {
         int len;
         SimpleXid xid = null;
         int secContext = 0;
-        boolean hasContext = false;
         boolean hasSecContext = false;
         while ((param = message.read()) != - 1) {
             len = StreamUtils.readPackedUnsignedInt32(message);
@@ -529,7 +528,6 @@ final class TransactionServerChannel {
         int len;
         SimpleXid xid = null;
         int secContext = 0;
-        boolean hasContext = false;
         boolean hasSecContext = false;
         boolean onePhase = false;
         while ((param = message.read()) != - 1) {

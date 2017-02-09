@@ -130,7 +130,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         Assert.checkMinimumParameter("timeout", 0, timeout);
         XAImporter xaImporter = provider.getXAImporter();
         final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout);
-        return result.withTransaction(getOrAttach(result.getTransaction(), xid));
+        return result.withTransaction(getOrAttach(result.getTransaction()));
     }
 
     /**
@@ -149,11 +149,11 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (transaction == null) {
             return false;
         }
-        state.transaction = getOrAttach(transaction, null);
+        state.transaction = getOrAttach(transaction);
         return true;
     }
 
-    LocalTransaction getOrAttach(Transaction transaction, Xid xid) {
+    LocalTransaction getOrAttach(Transaction transaction) {
         LocalTransaction txn = (LocalTransaction) provider.getResource(transaction, LOCAL_TXN_KEY);
         if (txn == null) {
             // use LOCAL_TXN_KEY so we can be reasonably assured that there will be no deadlock

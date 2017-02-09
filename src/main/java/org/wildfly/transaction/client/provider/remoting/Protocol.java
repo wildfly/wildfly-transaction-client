@@ -29,7 +29,6 @@ import java.nio.charset.StandardCharsets;
 import javax.transaction.xa.Xid;
 
 import org.wildfly.transaction.client.SimpleXid;
-import org.xnio.streams.LimitedInputStream;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -83,7 +82,7 @@ class Protocol {
 
     public static final int M_RESP_CAPABILITY   = 0x00; // P_*
 
-    public static final int M_RESP_XA_BEGIN     = 0x11; // [ P_XA_ERROR | P_SEC_EXC ]
+    // unused                                   = 0x11;
     public static final int M_RESP_XA_ROLLBACK  = 0x12; // [ P_XA_ERROR | P_SEC_EXC ]
     public static final int M_RESP_XA_PREPARE   = 0x13; // [ P_XA_RDONLY | P_XA_ERROR | P_SEC_EXC ]
     public static final int M_RESP_XA_COMMIT    = 0x14; // [ P_XA_ERROR | P_SEC_EXC ]
@@ -92,7 +91,7 @@ class Protocol {
 
     public static final int M_RESP_XA_RECOVER   = 0x17; // P_XID... | P_XA_ERROR | P_SEC_EXC
 
-    public static final int M_RESP_UT_BEGIN     = 0x18; // [ P_UT_SYS_EXC | P_SEC_EXC ]
+    // unused                                   = 0x18; // [ P_UT_SYS_EXC | P_SEC_EXC ]
     public static final int M_RESP_UT_COMMIT    = 0x19; // [ P_UT_RB_EXC | P_UT_HME_EXC | P_UT_HRE_EXC | P_UT_SYS_EXC | P_SEC_EXC ]
     public static final int M_RESP_UT_ROLLBACK  = 0x1A; // [ P_UT_SYS_EXC | P_SEC_EXC ]
 
@@ -107,7 +106,7 @@ class Protocol {
     public static final int P_PARENT_NAME   = 0x03; // body = utf8
     // unused                                 0x04
     // unused                                 0x05
-    public static final int P_TXN_TIMEOUT   = 0x06; // body = packed-int timeout (seconds)
+    // unused                                 0x06
     public static final int P_XA_RDONLY     = 0x07; // len=0
 
     public static final int P_UT_RB_EXC     = 0x10; // RollbackException
@@ -125,33 +124,6 @@ class Protocol {
     public static final int P_SEC_CONTEXT   = 0xF0; // uint32 security context association ID
     public static final int P_TXN_CONTEXT   = 0xF1; // uint32 transaction context association ID
 
-    public static void writeParam(int param, OutputStream os, byte val, @SuppressWarnings("unused") boolean signed) throws IOException {
-        writeInt8(os, param);
-        if (val == 0) {
-            writeInt8(os, 0);
-        } else {
-            writeInt8(os, 1);
-            writeInt8(os, val);
-        }
-    }
-
-
-    public static void writeParam(int param, OutputStream os, short val, boolean signed) throws IOException {
-        writeInt8(os, param);
-        final int len;
-        if (signed && val < 0) {
-            // always write one sign byte if needed
-            len = 32 - Integer.numberOfLeadingZeros(~val) + 8 >> 3;
-        } else {
-            len = 32 - Integer.numberOfLeadingZeros(val) + 7 >> 3;
-        }
-        writeInt8(os, len);
-        switch (len) {
-            case 2: writeInt8(os, val >> 8);
-            case 1: writeInt8(os, val >> 0);
-        }
-    }
-
     public static void writeParam(int param, OutputStream os, int val, boolean signed) throws IOException {
         writeInt8(os, param);
         final int len;
@@ -163,28 +135,6 @@ class Protocol {
         }
         writeInt8(os, len);
         switch (len) {
-            case 4: writeInt8(os, val >> 24);
-            case 3: writeInt8(os, val >> 16);
-            case 2: writeInt8(os, val >> 8);
-            case 1: writeInt8(os, val >> 0);
-        }
-    }
-
-    public static void writeParam(int param, OutputStream os, long val, boolean signed) throws IOException {
-        writeInt8(os, param);
-        final int len;
-        if (signed && val < 0) {
-            // always write one byte for -1
-            len = 64 - Long.numberOfLeadingZeros(~val) + 8 >> 3;
-        } else {
-            len = 64 - Long.numberOfLeadingZeros(val) + 7 >> 3;
-        }
-        writeInt8(os, len);
-        switch (len) {
-            case 8: writeInt8(os, val >> 56);
-            case 7: writeInt8(os, val >> 48);
-            case 6: writeInt8(os, val >> 40);
-            case 5: writeInt8(os, val >> 32);
             case 4: writeInt8(os, val >> 24);
             case 3: writeInt8(os, val >> 16);
             case 2: writeInt8(os, val >> 8);

@@ -185,15 +185,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return ((TransactionImple) transaction).getTxLocalResource(key);
     }
 
-    private Transaction safeGetTransaction() {
-        try {
-            return tm.getTransaction();
-        } catch (SystemException e) {
-            // should be impossible with Arjuna/Narayana
-            throw Log.log.unexpectedFailure(e);
-        }
-    }
-
     public void putResource(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
         ((TransactionImple) transaction).putTxLocalResource(key, value);
     }
@@ -343,20 +334,12 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
             this.xidKey = xidKey;
         }
 
-        SimpleXid getGtid() {
-            return gtid;
-        }
-
         XidKey getXidKey() {
             return xidKey;
         }
 
         Transaction getTransaction() {
             return transaction;
-        }
-
-        int getTimeout() {
-            return ((TransactionImple) transaction).getTimeout();
         }
 
         void rollbackLocal() throws SystemException {
@@ -582,7 +565,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
             try {
                 final SimpleXid simpleXid = SimpleXid.of(xid);
                 final SimpleXid gtid = simpleXid.withoutBranch();
-                final int status;
                 final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
                 Entry entry = known.get(gtid);
                 if (entry != null) {
@@ -609,7 +591,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
             try {
                 final SimpleXid simpleXid = SimpleXid.of(xid);
                 final SimpleXid gtid = simpleXid.withoutBranch();
-                final int status;
                 final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
                 Entry entry = known.get(gtid);
                 if (entry != null) {
@@ -670,14 +651,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
             } catch (Throwable t) {
                 throw Log.log.resourceManagerErrorXa(XAException.XAER_RMFAIL, t);
             }
-        }
-
-        private ImportedTransaction requireTxn(final Xid xid) throws XAException {
-            final ImportedTransaction importedTransaction = ext.getImportedTransaction(xid);
-            if (importedTransaction == null) {
-                throw Log.log.notActiveXA(XAException.XAER_NOTA);
-            }
-            return importedTransaction;
         }
     }
 

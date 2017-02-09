@@ -21,7 +21,6 @@ package org.wildfly.transaction.client.provider.remoting;
 import static org.xnio.IoUtils.safeClose;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -53,7 +52,6 @@ import org.xnio.OptionMap;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 final class TransactionClientChannel implements RemotingOperations {
-    private final URI location;
     private final Channel channel;
     private final InvocationTracker invocationTracker;
     private final IntIndexMap<RemotingRemoteTransactionHandle> peerTransactionMap = new IntIndexHashMap<RemotingRemoteTransactionHandle>(RemotingRemoteTransactionHandle::getId);
@@ -61,25 +59,20 @@ final class TransactionClientChannel implements RemotingOperations {
 
     private static final ClientServiceHandle<TransactionClientChannel> CLIENT_SERVICE_HANDLE = new ClientServiceHandle<>("txn", TransactionClientChannel::construct);
 
-    TransactionClientChannel(final URI location, final Channel channel) {
-        this.location = location;
+    TransactionClientChannel(final Channel channel) {
         this.channel = channel;
         invocationTracker = new InvocationTracker(channel);
     }
 
     private static IoFuture<TransactionClientChannel> construct(final Channel channel) {
         // future protocol versions might have to negotiate a version or capabilities before proceeding
-        final TransactionClientChannel clientChannel = new TransactionClientChannel(channel.getConnection().getPeerURI(), channel);
+        final TransactionClientChannel clientChannel = new TransactionClientChannel(channel);
         channel.receiveMessage(clientChannel.getReceiver());
         return new FinishedIoFuture<>(clientChannel);
     }
 
-    URI getLocation() {
-        return location;
-    }
-
     @NotNull
-    public SimpleTransactionControl begin(final int timeout) throws SystemException {
+    public SimpleTransactionControl begin() throws SystemException {
         int id;
         final ThreadLocalRandom random = ThreadLocalRandom.current();
         final IntIndexMap<RemotingRemoteTransactionHandle> map = this.peerTransactionMap;

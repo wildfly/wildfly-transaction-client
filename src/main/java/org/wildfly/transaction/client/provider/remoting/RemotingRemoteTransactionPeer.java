@@ -105,7 +105,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @NotNull
-    public SubordinateTransactionControl lookupXid(final Xid xid, final int remainingTimeout) throws XAException {
+    public SubordinateTransactionControl lookupXid(final Xid xid) throws XAException {
         return new SubordinateTransactionControl() {
             public void rollback() throws XAException {
                 try {
@@ -160,10 +160,10 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @NotNull
-    public SimpleTransactionControl begin(final int timeout) throws SystemException {
+    public SimpleTransactionControl begin() throws SystemException {
         // this one is bound to the connection
         try {
-            return getOperations().begin(timeout);
+            return getOperations().begin();
         } catch (IOException e) {
             throw Log.log.failedToAcquireConnection(e);
         }

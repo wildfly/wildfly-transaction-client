@@ -38,6 +38,6 @@ public final class TxnNamingContextFactory implements NamingContextFactory {
     }
 
     public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) throws NamingException {
-        return new TxnNamingContext(namingProvider, env);
+        return new TxnNamingContext(namingProvider);
     }
 }

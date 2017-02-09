@@ -81,10 +81,6 @@ public final class RemotingTransactionService {
         return transactionContext;
     }
 
-    Endpoint getEndpoint() {
-        return endpoint;
-    }
-
     public static Builder builder() {
         return new Builder();
     }

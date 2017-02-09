@@ -96,10 +96,6 @@ final class XAOutflowedResources {
         }
     }
 
-    LocalTransaction getTransaction() {
-        return transaction;
-    }
-
     static final class Key {
         private final URI location;
         private final String parentName;
@@ -107,14 +103,6 @@ final class XAOutflowedResources {
         Key(final URI location, final String parentName) {
             this.location = location;
             this.parentName = parentName;
-        }
-
-        URI getLocation() {
-            return location;
-        }
-
-        String getParentName() {
-            return parentName;
         }
 
         public boolean equals(final Object obj) {

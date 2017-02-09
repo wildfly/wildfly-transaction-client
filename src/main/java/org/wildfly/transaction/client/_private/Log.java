@@ -41,7 +41,6 @@ import org.jboss.logging.annotations.Field;
 import org.jboss.logging.annotations.LogMessage;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
-import org.jboss.logging.annotations.Property;
 import org.jboss.remoting3.Endpoint;
 import org.wildfly.transaction.client.DelayedEnlistmentException;
 import org.wildfly.transaction.client.SynchronizationException;

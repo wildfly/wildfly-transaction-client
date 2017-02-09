@@ -35,12 +35,11 @@ public interface RemoteTransactionPeer {
      * usually be empty in any event).
      *
      * @param xid the transaction ID
-     * @param remainingTimeout the remaining timeout of the transaction, in seconds (0 indicates that the default should be used)
      * @return the handle for the remote transaction
      * @throws XAException if the lookup failed for some reason
      */
     @NotNull
-    SubordinateTransactionControl lookupXid(Xid xid, int remainingTimeout) throws XAException;
+    SubordinateTransactionControl lookupXid(Xid xid) throws XAException;
 
     /**
      * Acquire a list of all unresolved subordinate transactions from the location associated with this provider.
@@ -56,12 +55,11 @@ public interface RemoteTransactionPeer {
     /**
      * Establish a remote user-controlled transaction without local enlistment.
      *
-     * @param timeout the transaction timeout to use, or 0 to use the remote system default
      * @return the transaction handle (must not be {@code null})
      * @throws SystemException if an unexpected error occurs
      */
     @NotNull
-    SimpleTransactionControl begin(int timeout) throws SystemException;
+    SimpleTransactionControl begin() throws SystemException;
 
     /**
      * Get the provider interface with the given type for this peer.
