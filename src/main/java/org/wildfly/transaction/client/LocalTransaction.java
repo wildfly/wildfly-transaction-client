@@ -51,11 +51,19 @@ public final class LocalTransaction extends AbstractTransaction {
             throw Log.log.commitOnImported();
         }
         // ensure we're not associated with the transaction
-        final TransactionManager transactionManager = owner.getProvider().getTransactionManager();
-        if (transaction.equals(transactionManager.getTransaction())) {
-            transactionManager.commit();
-        } else {
-            owner.getProvider().commitLocal(transaction);
+        try {
+            final TransactionManager transactionManager = owner.getProvider().getTransactionManager();
+            if (transaction.equals(transactionManager.getTransaction())) {
+                transactionManager.commit();
+            } else {
+                owner.getProvider().commitLocal(transaction);
+            }
+        } finally {
+            final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
+            if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
+                // we can drop the mapping, since we are both a master and have no enlisted subordinates
+                owner.getProvider().dropLocal(transaction);
+            }
         }
     }
 

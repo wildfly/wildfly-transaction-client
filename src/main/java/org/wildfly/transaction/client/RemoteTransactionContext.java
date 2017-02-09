@@ -165,10 +165,10 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
         Assert.checkNotNullParam("location", location);
         Assert.checkNotNullParam("transaction", transaction);
 
-        XAOutflowedResources outflowedResources = (XAOutflowedResources) transaction.getResource(outflowKey);
+        XAOutflowedResources outflowedResources = getOutflowedResources(transaction);
         if (outflowedResources == null) {
             synchronized (transaction.getOutflowLock()) {
-                outflowedResources = (XAOutflowedResources) transaction.getResource(outflowKey);
+                outflowedResources = getOutflowedResources(transaction);
                 if (outflowedResources == null) {
                     transaction.putResource(outflowKey, outflowedResources = new XAOutflowedResources(transaction));
                 }
@@ -176,6 +176,10 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
         }
         SubordinateXAResource resource = outflowedResources.getOrEnlist(location, transaction.getParentName());
         return resource.addHandle(resource.getXid());
+    }
+
+    static XAOutflowedResources getOutflowedResources(final LocalTransaction transaction) {
+        return (XAOutflowedResources) transaction.getResource(outflowKey);
     }
 
     RemoteTransactionProvider getProvider(final URI location) {

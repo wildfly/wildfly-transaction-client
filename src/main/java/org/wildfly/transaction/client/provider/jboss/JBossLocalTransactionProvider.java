@@ -219,6 +219,15 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         getEntryFor(transaction, SimpleXid.of(getXid(transaction)).withoutBranch()).rollbackLocal();
     }
 
+    public void dropLocal(@NotNull final Transaction transaction) {
+        final Xid xid = getXid(transaction);
+        final SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+        final Entry entry = known.remove(gtid);
+        if (entry != null) {
+            timeoutSet.remove(entry.getXidKey());
+        }
+    }
+
     public int getTimeout(@NotNull final Transaction transaction) {
         return ((TransactionImple) transaction).getTimeout();
     }
@@ -242,17 +251,19 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         if (entry != null) {
             return entry;
         }
+        final XidKey xidKey;
         synchronized (ENTRY_KEY) {
             entry = (Entry) getResource(transaction, ENTRY_KEY);
             if (entry != null) {
                 return entry;
             }
-            putResource(transaction, ENTRY_KEY, entry = new Entry(gtid, transaction));
+            int lifetime = getTimeout(transaction) + staleTransactionTime;
+            final long timeTick = getTimeTick();
+            // this is the maximum amount of time we expect any potential incoming peer might know about this transaction ID
+            xidKey = new XidKey(gtid, timeTick + lifetime * 1_000_000_000L);
+            putResource(transaction, ENTRY_KEY, entry = new Entry(gtid, transaction, xidKey));
         }
-        int lifetime = getTimeout(transaction) + staleTransactionTime;
-        final long timeTick = getTimeTick();
-        // this is the maximum amount of time we expect any potential incoming peer might know about this transaction ID
-        timeoutSet.add(new XidKey(gtid, timeTick + lifetime * 1_000_000_000L));
+        timeoutSet.add(xidKey);
         registerInterposedSynchronization(transaction, new Synchronization() {
             public void beforeCompletion() {
                 // no operation
@@ -324,15 +335,20 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         private final SimpleXid gtid;
         private final Transaction transaction;
         private final AtomicInteger completionBits = new AtomicInteger(0);
-        private final long start = System.nanoTime();
+        private final XidKey xidKey;
 
-        Entry(final SimpleXid gtid, final Transaction transaction) {
+        Entry(final SimpleXid gtid, final Transaction transaction, final XidKey xidKey) {
             this.gtid = gtid;
             this.transaction = transaction;
+            this.xidKey = xidKey;
         }
 
         SimpleXid getGtid() {
             return gtid;
+        }
+
+        XidKey getXidKey() {
+            return xidKey;
         }
 
         Transaction getTransaction() {

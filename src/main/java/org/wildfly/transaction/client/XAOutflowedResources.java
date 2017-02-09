@@ -36,6 +36,9 @@ final class XAOutflowedResources {
     private final LocalTransaction transaction;
     private final ConcurrentMap<Key, SubordinateXAResource> enlistments = new ConcurrentHashMap<>();
 
+    // protected by {@code this}
+    private int enlistedSubordinates = 0;
+
     XAOutflowedResources(final LocalTransaction transaction) {
         this.transaction = transaction;
     }
@@ -55,6 +58,7 @@ final class XAOutflowedResources {
             if (! transaction.enlistResource(xaResource)) {
                 throw Log.log.couldNotEnlist();
             }
+            enlistedSubordinates ++;
             final SubordinateXAResource finalXaResource = xaResource;
             transaction.registerSynchronization(new Synchronization() {
                 public void beforeCompletion() {
@@ -65,6 +69,9 @@ final class XAOutflowedResources {
                             // try and delist, so the TM can maybe perform a 1PC; if it fails that's OK
                             try {
                                 transaction.delistResource(finalXaResource, XAResource.TMSUCCESS);
+                                synchronized (this) {
+                                    enlistedSubordinates --;
+                                }
                             } catch (SystemException ignored) {
                                 // optimization failed!
                             }
@@ -80,6 +87,12 @@ final class XAOutflowedResources {
             });
             enlistments.put(key, xaResource);
             return xaResource;
+        }
+    }
+
+    int getEnlistedSubordinates() {
+        synchronized (this) {
+            return enlistedSubordinates;
         }
     }
 

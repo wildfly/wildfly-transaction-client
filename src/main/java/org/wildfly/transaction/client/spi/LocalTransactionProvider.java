@@ -153,6 +153,14 @@ public interface LocalTransactionProvider extends TransactionProvider {
     void rollbackLocal(@NotNull Transaction transaction) throws IllegalStateException, SystemException;
 
     /**
+     * Drop a local transaction from memory.  The transaction is locally-initiated and contains no remote subordinate
+     * enlistments, guaranteeing that the transaction can never reappear on this node.
+     *
+     * @param transaction the transaction to drop (not {@code null})
+     */
+    void dropLocal(@NotNull Transaction transaction);
+
+    /**
      * Get the configured timeout of the given transaction (not the remaining time).
      *
      * @param transaction the transaction (not {@code null})
@@ -310,6 +318,10 @@ public interface LocalTransactionProvider extends TransactionProvider {
 
         public void rollbackLocal(@NotNull final Transaction transaction) throws IllegalStateException, SystemException {
             throw Log.log.noTransaction();
+        }
+
+        public void dropLocal(@NotNull final Transaction transaction) {
+            // no operation
         }
 
         @NotNull
