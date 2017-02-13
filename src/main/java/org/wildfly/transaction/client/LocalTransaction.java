@@ -18,6 +18,8 @@
 
 package org.wildfly.transaction.client;
 
+import java.io.Serializable;
+
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
@@ -30,6 +32,7 @@ import javax.transaction.xa.XAResource;
 
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client._private.Log;
+import org.wildfly.transaction.client.spi.LocalTransactionProvider;
 
 /**
  * A transaction from a local transaction provider.
@@ -104,7 +107,7 @@ public final class LocalTransaction extends AbstractTransaction {
 
     public void registerSynchronization(final Synchronization sync) throws RollbackException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("sync", sync);
-        transaction.registerSynchronization(sync);
+        transaction.registerSynchronization(new AssociatedSynchronization(sync));
     }
 
     /**
@@ -118,7 +121,7 @@ public final class LocalTransaction extends AbstractTransaction {
 
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {
         Assert.checkNotNullParam("sync", sync);
-        owner.getProvider().registerInterposedSynchronization(transaction, sync);
+        owner.getProvider().registerInterposedSynchronization(transaction, new AssociatedSynchronization(sync));
     }
 
     Object getResource(final Object key) throws NullPointerException {
@@ -213,4 +216,67 @@ public final class LocalTransaction extends AbstractTransaction {
     private boolean equals(final LocalTransaction obj) {
         return this == obj || obj != null && transaction.equals(obj.transaction);
     }
+
+    static final class AssociatedSynchronization implements Synchronization, Serializable {
+        private static final long serialVersionUID = - 4894315841737258909L;
+
+        private final Synchronization delegate;
+
+        AssociatedSynchronization(final Synchronization delegate) {
+            this.delegate = delegate;
+        }
+
+        public void beforeCompletion() {
+            final LocalTransactionContext transactionContext = LocalTransactionContext.getCurrent();
+            final LocalTransactionProvider provider = transactionContext.getProvider();
+            final Transaction transaction;
+            try {
+                transaction = provider.getTransactionManager().getTransaction();
+            } catch (SystemException e) {
+                throw Log.log.invalidTxnState();
+            }
+            final LocalTransaction localTransaction = transactionContext.getOrAttach(transaction);
+            final ContextTransactionManager.State state = ContextTransactionManager.getInstance().getStateRef().get();
+            final AbstractTransaction old = state.transaction;
+            state.transaction = localTransaction;
+            try {
+                delegate.beforeCompletion();
+            } finally {
+                state.transaction = old;
+            }
+        }
+
+        public void afterCompletion(final int status) {
+            final LocalTransactionContext transactionContext = LocalTransactionContext.getCurrent();
+            final LocalTransactionProvider provider = transactionContext.getProvider();
+            final Transaction transaction;
+            try {
+                transaction = provider.getTransactionManager().getTransaction();
+            } catch (SystemException e) {
+                throw Log.log.invalidTxnState();
+            }
+            final LocalTransaction localTransaction = transactionContext.getOrAttach(transaction);
+            final ContextTransactionManager.State state = ContextTransactionManager.getInstance().getStateRef().get();
+            final AbstractTransaction old = state.transaction;
+            state.transaction = localTransaction;
+            try {
+                delegate.afterCompletion(status);
+            } finally {
+                state.transaction = old;
+            }
+        }
+
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        public boolean equals(final Object obj) {
+            return obj instanceof AssociatedSynchronization && delegate.equals(((AssociatedSynchronization) obj).delegate);
+        }
+
+        public String toString() {
+            return String.format("Association wrapper around %s", delegate);
+        }
+    }
+
 }
