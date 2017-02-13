@@ -82,7 +82,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
             }
 
             public int getRemainingTime() {
-                return getCapturedTimeout();
+                return SubordinateXAResource.this.getRemainingTime();
             }
 
             public void forgetEnlistment() {
@@ -202,9 +202,9 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
         return Log.log.subordinateXaResource(location);
     }
 
-    int getCapturedTimeout() {
-        long elapsed = System.nanoTime() - startTime;
+    int getRemainingTime() {
+        long elapsed = max(0L, System.nanoTime() - startTime);
         final int capturedTimeout = this.capturedTimeout;
-        return capturedTimeout - (int) max(capturedTimeout, elapsed / 1_000_000L);
+        return capturedTimeout - (int) min(capturedTimeout, elapsed / 1_000_000L);
     }
 }
