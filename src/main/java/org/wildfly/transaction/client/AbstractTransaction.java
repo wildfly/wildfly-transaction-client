@@ -30,6 +30,15 @@ import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 
 import org.wildfly.common.Assert;
+import org.wildfly.common.function.ExceptionBiConsumer;
+import org.wildfly.common.function.ExceptionBiFunction;
+import org.wildfly.common.function.ExceptionConsumer;
+import org.wildfly.common.function.ExceptionFunction;
+import org.wildfly.common.function.ExceptionIntFunction;
+import org.wildfly.common.function.ExceptionRunnable;
+import org.wildfly.common.function.ExceptionSupplier;
+import org.wildfly.common.function.ExceptionToIntBiFunction;
+import org.wildfly.common.function.ExceptionToIntFunction;
 import org.wildfly.transaction.TransactionPermission;
 
 /**
@@ -112,6 +121,56 @@ public abstract class AbstractTransaction implements Transaction {
         }
 
         associationListeners.add(associationListener);
+    }
+
+    public <T, U, R, E extends Exception> R performFunction(ExceptionBiFunction<T, U, R, E> function, T param1, U param2) throws E, SystemException {
+        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
+        final AbstractTransaction suspended = tm.suspend();
+        try {
+            return function.apply(param1, param2);
+        } finally {
+            tm.resume(suspended);
+        }
+    }
+
+    public <T, R, E extends Exception> R performFunction(ExceptionFunction<T, R, E> function, T param) throws E, SystemException {
+        return performFunction(ExceptionFunction::apply, function, param);
+    }
+
+    public <R, E extends Exception> R performSupplier(ExceptionSupplier<R, E> function) throws E, SystemException {
+        return performFunction(ExceptionSupplier::get, function);
+    }
+
+    public <T, U, E extends Exception> void performConsumer(ExceptionBiConsumer<T, U, E> consumer, T param1, U param2) throws E, SystemException {
+        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
+        final AbstractTransaction suspended = tm.suspend();
+        try {
+            consumer.accept(param1, param2);
+        } finally {
+            tm.resume(suspended);
+        }
+    }
+
+    public <T, E extends Exception> void performConsumer(ExceptionConsumer<T, E> consumer, T param) throws E, SystemException {
+        performConsumer(ExceptionConsumer::accept, consumer, param);
+    }
+
+    public <T, U, E extends Exception> int performToIntFunction(ExceptionToIntBiFunction<T, U, E> function, T param1, U param2) throws E, SystemException {
+        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
+        final AbstractTransaction suspended = tm.suspend();
+        try {
+            return function.apply(param1, param2);
+        } finally {
+            tm.resume(suspended);
+        }
+    }
+
+    public <T, E extends Exception> int performToIntFunction(ExceptionToIntFunction<T, E> function, T param) throws E, SystemException {
+        return performToIntFunction(ExceptionToIntFunction::apply, function, param);
+    }
+
+    public <E extends Exception> void performAction(ExceptionRunnable<E> action) throws E, SystemException {
+        performConsumer((ExceptionConsumer<ExceptionRunnable<E>, E>) ExceptionRunnable::run, action);
     }
 
     Object getOutflowLock() {

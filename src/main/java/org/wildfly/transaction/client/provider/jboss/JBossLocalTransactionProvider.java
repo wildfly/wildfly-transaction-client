@@ -560,8 +560,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
 
     final class XAImporterImpl implements XAImporter {
 
-        @NotNull
-        public ImportResult<Transaction> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
+        public ImportResult<Transaction> findOrImportTransaction(final Xid xid, final int timeout, final boolean doNotImport) throws XAException {
             try {
                 final SimpleXid simpleXid = SimpleXid.of(xid);
                 final SimpleXid gtid = simpleXid.withoutBranch();
@@ -570,15 +569,26 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 if (entry != null) {
                     return new ImportResult<Transaction>(entry.getTransaction(), entry, false);
                 }
-                final TransactionImportResult result = ext.importTransaction(xid, timeout);
-                final ImportedTransaction transaction = result.getTransaction();
+                final boolean imported;
+                final ImportedTransaction transaction;
+                if (doNotImport) {
+                    imported = false;
+                    transaction = ext.getImportedTransaction(xid);
+                    if (transaction == null) {
+                        return null;
+                    }
+                } else {
+                    final TransactionImportResult result = ext.importTransaction(xid, timeout);
+                    transaction = result.getTransaction();
+                    imported = result.isNewImportedTransaction();
+                }
                 entry = getEntryFor(transaction, gtid);
                 final Entry appearing = known.putIfAbsent(gtid, entry);
                 if (appearing != null) {
                     // even if someone else beat us to the map, we still might have imported first... preserve the original Entry for economy though
-                    return new ImportResult<Transaction>(transaction, appearing, result.isNewImportedTransaction());
+                    return new ImportResult<Transaction>(transaction, appearing, imported);
                 } else {
-                    return new ImportResult<Transaction>(transaction, entry, result.isNewImportedTransaction());
+                    return new ImportResult<Transaction>(transaction, entry, imported);
                 }
             } catch (XAException e) {
                 throw e;

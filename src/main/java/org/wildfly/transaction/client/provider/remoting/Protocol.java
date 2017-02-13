@@ -91,9 +91,10 @@ class Protocol {
 
     public static final int M_RESP_XA_RECOVER   = 0x17; // P_XID... | P_XA_ERROR | P_SEC_EXC
 
-    // unused                                   = 0x18; // [ P_UT_SYS_EXC | P_SEC_EXC ]
-    public static final int M_RESP_UT_COMMIT    = 0x19; // [ P_UT_RB_EXC | P_UT_HME_EXC | P_UT_HRE_EXC | P_UT_SYS_EXC | P_SEC_EXC ]
-    public static final int M_RESP_UT_ROLLBACK  = 0x1A; // [ P_UT_SYS_EXC | P_SEC_EXC ]
+    public static final int M_RESP_XA_RB_ONLY   = 0x18; // [ P_XA_ERROR | P_SEC_EXC ]
+
+    public static final int M_RESP_UT_COMMIT    = 0x1A; // [ P_UT_RB_EXC | P_UT_HME_EXC | P_UT_HRE_EXC | P_UT_SYS_EXC | P_SEC_EXC ]
+    public static final int M_RESP_UT_ROLLBACK  = 0x1B; // [ P_UT_SYS_EXC | P_SEC_EXC ]
 
     public static final int M_RESP_PARAM_ERROR  = 0xFE; // empty (missing required or found unknown parameter)
     public static final int M_RESP_ERROR        = 0xFF; // empty (unknown request code)

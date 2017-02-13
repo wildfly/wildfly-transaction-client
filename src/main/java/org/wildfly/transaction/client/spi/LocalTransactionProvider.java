@@ -249,9 +249,8 @@ public interface LocalTransactionProvider extends TransactionProvider {
             }
         };
         private final XAImporter xaImporter = new XAImporter() {
-            @NotNull
-            public ImportResult<?> findOrImportTransaction(final Xid xid, final int timeout) throws XAException {
-                throw Assert.unsupported();
+            public ImportResult<?> findOrImportTransaction(final Xid xid, final int timeout, final boolean doNotImport) throws XAException {
+                if (doNotImport) return null; else throw Assert.unsupported();
             }
 
             public Transaction findExistingTransaction(final Xid xid) throws XAException {

@@ -150,7 +150,7 @@ final class TransactionClientChannel implements RemotingOperations {
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
-                if (is.readUnsignedByte() != Protocol.M_RESP_XA_ROLLBACK) {
+                if (is.readUnsignedByte() != Protocol.M_RESP_XA_RB_ONLY) {
                     throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
                 int id = is.read();

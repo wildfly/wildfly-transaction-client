@@ -121,16 +121,29 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      *
      * @param xid the XID of the transaction to import (must not be {@code null})
      * @param timeout the transaction timeout to use, if new
+     * @param doNotImport {@code true} to indicate that a non-existing transaction should not be imported, {@code false} otherwise
+     * @return the transaction import result, or {@code null} if (and only if) {@code doNotImport} is {@code true} and the transaction didn't exist locally
+     * @throws XAException if a problem occurred while importing the transaction
+     */
+    public ImportResult<LocalTransaction> findOrImportTransaction(Xid xid, int timeout, boolean doNotImport) throws XAException {
+        Assert.checkNotNullParam("xid", xid);
+        Assert.checkMinimumParameter("timeout", 0, timeout);
+        XAImporter xaImporter = provider.getXAImporter();
+        final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout, doNotImport);
+        return result.withTransaction(getOrAttach(result.getTransaction()));
+    }
+
+    /**
+     * Attempt to import a transaction, which subsequently may be controlled by its XID or by the returned handle.
+     *
+     * @param xid the XID of the transaction to import (must not be {@code null})
+     * @param timeout the transaction timeout to use, if new
      * @return the transaction import result (not {@code null})
      * @throws XAException if a problem occurred while importing the transaction
      */
     @NotNull
     public ImportResult<LocalTransaction> findOrImportTransaction(Xid xid, int timeout) throws XAException {
-        Assert.checkNotNullParam("xid", xid);
-        Assert.checkMinimumParameter("timeout", 0, timeout);
-        XAImporter xaImporter = provider.getXAImporter();
-        final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout);
-        return result.withTransaction(getOrAttach(result.getTransaction()));
+        return findOrImportTransaction(xid, timeout, false);
     }
 
     /**

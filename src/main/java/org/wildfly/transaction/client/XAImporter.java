@@ -37,11 +37,11 @@ public interface XAImporter extends XARecoverable {
      *
      * @param xid the transaction ID (must not be {@code null})
      * @param timeout the remaining transaction timeout, or 0 if the default should be used
-     * @return the imported transaction (must not be {@code null})
+     * @param doNotImport {@code true} to indicate that a non-existing transaction should not be imported, {@code false} otherwise
+     * @return the transaction import result, or {@code null} if (and only if) {@code doNotImport} is {@code true} and the transaction didn't exist locally
      * @throws XAException if the import failed for some reason
      */
-    @NotNull
-    ImportResult<?> findOrImportTransaction(Xid xid, int timeout) throws XAException;
+    ImportResult<?> findOrImportTransaction(Xid xid, int timeout, final boolean doNotImport) throws XAException;
 
     /**
      * Find an existing transaction on this system.  If no such transaction exists, {@code null} is returned.  Normally
