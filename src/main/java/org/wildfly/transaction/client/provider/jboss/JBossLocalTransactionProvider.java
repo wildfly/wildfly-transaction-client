@@ -574,10 +574,10 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                     return new ImportResult<Transaction>(entry.getTransaction(), entry, false);
                 }
                 final boolean imported;
-                final ImportedTransaction transaction;
+                final Transaction transaction;
                 if (doNotImport) {
                     imported = false;
-                    transaction = ext.getImportedTransaction(xid);
+                    transaction = ext.getTransaction(xid);
                     if (transaction == null) {
                         return null;
                     }
