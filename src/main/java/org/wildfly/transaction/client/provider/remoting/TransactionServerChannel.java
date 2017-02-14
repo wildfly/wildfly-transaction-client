@@ -386,7 +386,7 @@ final class TransactionServerChannel {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
                 // run operation while associated
-                importResult.getTransaction().performConsumer(c -> c.end(XAResource.TMFAIL), importResult.getControl());
+                importResult.getTransaction().performConsumer(SubordinateTransactionControl::end, importResult.getControl(), XAResource.TMFAIL);
                 writeSimpleResponse(M_RESP_XA_RB_ONLY, i);
             } catch (SystemException e) {
                 writeXaExceptionResponse(M_RESP_XA_RB_ONLY, i, XAException.XAER_RMFAIL);

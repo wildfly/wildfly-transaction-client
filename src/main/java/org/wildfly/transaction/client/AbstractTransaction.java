@@ -34,7 +34,7 @@ import org.wildfly.common.function.ExceptionBiConsumer;
 import org.wildfly.common.function.ExceptionBiFunction;
 import org.wildfly.common.function.ExceptionConsumer;
 import org.wildfly.common.function.ExceptionFunction;
-import org.wildfly.common.function.ExceptionIntFunction;
+import org.wildfly.common.function.ExceptionObjIntConsumer;
 import org.wildfly.common.function.ExceptionRunnable;
 import org.wildfly.common.function.ExceptionSupplier;
 import org.wildfly.common.function.ExceptionToIntBiFunction;
@@ -139,6 +139,16 @@ public abstract class AbstractTransaction implements Transaction {
 
     public <R, E extends Exception> R performSupplier(ExceptionSupplier<R, E> function) throws E, SystemException {
         return performFunction(ExceptionSupplier::get, function);
+    }
+
+    public <T, E extends Exception> void performConsumer(ExceptionObjIntConsumer<T, E> consumer, T param1, int param2) throws E, SystemException {
+        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
+        final AbstractTransaction suspended = tm.suspend();
+        try {
+            consumer.accept(param1, param2);
+        } finally {
+            tm.resume(suspended);
+        }
     }
 
     public <T, U, E extends Exception> void performConsumer(ExceptionBiConsumer<T, U, E> consumer, T param1, U param2) throws E, SystemException {
