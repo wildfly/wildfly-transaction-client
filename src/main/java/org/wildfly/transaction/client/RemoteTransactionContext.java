@@ -30,6 +30,7 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 import javax.transaction.RollbackException;
@@ -39,6 +40,7 @@ import javax.transaction.UserTransaction;
 import org.wildfly.common.Assert;
 import org.wildfly.common.context.ContextManager;
 import org.wildfly.common.context.Contextual;
+import org.wildfly.transaction.TransactionPermission;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 
@@ -50,9 +52,11 @@ import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 public final class RemoteTransactionContext implements Contextual<RemoteTransactionContext> {
 
     private static final RemoteTransactionProvider[] NO_PROVIDERS = new RemoteTransactionProvider[0];
+    private static final TransactionPermission CREATION_LISTENER_PERMISSION = TransactionPermission.forName("registerCreationListener");
 
     private final ConcurrentMap<URI, RemoteUserTransaction> userTransactions = new ConcurrentHashMap<>();
     private final List<RemoteTransactionProvider> providers;
+    private final List<CreationListener> creationListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Construct a new instance.  The given class loader is scanned for transaction providers.
@@ -82,6 +86,41 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
      */
     public RemoteTransactionContext(final List<RemoteTransactionProvider> providers) {
         this(providers, true);
+    }
+
+    RemoteTransaction notifyCreationListeners(RemoteTransaction transaction) {
+        for (CreationListener creationListener : creationListeners) {
+            try {
+                creationListener.transactionCreated(transaction);
+            } catch (Throwable t) {
+                Log.log.trace("Transaction creation listener throws an exception", t);
+            }
+        }
+        return transaction;
+    }
+
+    /**
+     * Register a transaction creation listener.
+     *
+     * @param creationListener the creation listener (must not be {@code null})
+     */
+    public void registerCreationListener(CreationListener creationListener) {
+        Assert.checkNotNullParam("creationListener", creationListener);
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(CREATION_LISTENER_PERMISSION);
+        }
+        creationListeners.add(creationListener);
+    }
+
+    /**
+     * Remove a transaction creation listener.
+     *
+     * @param creationListener the creation listener (must not be {@code null})
+     */
+    public void removeCreationListener(CreationListener creationListener) {
+        Assert.checkNotNullParam("creationListener", creationListener);
+        creationListeners.removeIf(c -> c == creationListener);
     }
 
     RemoteTransactionContext(List<RemoteTransactionProvider> providers, boolean clone) {

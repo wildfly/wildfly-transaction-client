@@ -54,13 +54,14 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
         if (transactionManager.getTransaction() != null) {
             throw Log.log.nestedNotSupported();
         }
-        final RemoteTransactionProvider provider = RemoteTransactionContext.getInstancePrivate().getProvider(location);
+        final RemoteTransactionContext context = RemoteTransactionContext.getInstancePrivate();
+        final RemoteTransactionProvider provider = context.getProvider(location);
         if (provider == null) {
             throw Log.log.noProviderForUri(location);
         }
         final SimpleTransactionControl control = provider.getPeerHandle(location).begin();
         final int timeout = stateRef.get().timeout;
-        transactionManager.resume(new RemoteTransaction(control, location, timeout));
+        transactionManager.resume(context.notifyCreationListeners(new RemoteTransaction(control, location, timeout)));
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {

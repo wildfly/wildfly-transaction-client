@@ -21,8 +21,8 @@ package org.wildfly.transaction.client;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.transaction.Status;
 import javax.transaction.Synchronization;
@@ -52,7 +52,7 @@ public abstract class AbstractTransaction implements Transaction {
 
     private final Object outflowLock = new Object();
     private final long start = System.nanoTime();
-    final Set<AssociationListener> associationListeners = new CopyOnWriteArraySet<>();
+    final List<AssociationListener> associationListeners = new CopyOnWriteArrayList<>();
 
     AbstractTransaction() {
     }
@@ -74,6 +74,16 @@ public abstract class AbstractTransaction implements Transaction {
     }
 
     abstract void suspend() throws SystemException;
+
+    void notifyAssociationListeners(final boolean associated) {
+        for (AssociationListener associationListener : associationListeners) {
+            try {
+                associationListener.associationChanged(this, associated);
+            } catch (Throwable t) {
+                Log.log.tracef(t, "An association listener %s threw an exception on transaction %s", associationListener, this);
+            }
+        }
+    }
 
     abstract void resume() throws SystemException;
 

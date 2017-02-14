@@ -21,6 +21,8 @@ package org.wildfly.transaction.client;
 import static java.security.AccessController.doPrivileged;
 
 import java.security.PrivilegedAction;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 import javax.transaction.NotSupportedException;
@@ -47,6 +49,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     private static final Supplier<LocalTransactionContext> PRIVILEGED_SUPPLIER = doPrivileged((PrivilegedAction<Supplier<LocalTransactionContext>>) CONTEXT_MANAGER::getPrivilegedSupplier);
 
     private static final Object LOCAL_TXN_KEY = new Object();
+    private static final TransactionPermission CREATION_LISTENER_PERMISSION = TransactionPermission.forName("registerCreationListener");
 
     static {
         doPrivileged((PrivilegedAction<?>) () -> {
@@ -56,6 +59,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     }
 
     private final LocalTransactionProvider provider;
+
+    private final List<CreationListener> creationListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Construct a new instance.  The given provider will be used to manage local transactions.
@@ -97,6 +102,41 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         return PRIVILEGED_SUPPLIER.get();
     }
 
+    private LocalTransaction notifyCreationListeners(LocalTransaction transaction) {
+        for (CreationListener creationListener : creationListeners) {
+            try {
+                creationListener.transactionCreated(transaction);
+            } catch (Throwable t) {
+                Log.log.trace("Transaction creation listener throws an exception", t);
+            }
+        }
+        return transaction;
+    }
+
+    /**
+     * Register a transaction creation listener.
+     *
+     * @param creationListener the creation listener (must not be {@code null})
+     */
+    public void registerCreationListener(CreationListener creationListener) {
+        Assert.checkNotNullParam("creationListener", creationListener);
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(CREATION_LISTENER_PERMISSION);
+        }
+        creationListeners.add(creationListener);
+    }
+
+    /**
+     * Remove a transaction creation listener.
+     *
+     * @param creationListener the creation listener (must not be {@code null})
+     */
+    public void removeCreationListener(CreationListener creationListener) {
+        Assert.checkNotNullParam("creationListener", creationListener);
+        creationListeners.removeIf(c -> c == creationListener);
+    }
+
     /**
      * Begin a new, local transaction.
      *
@@ -113,7 +153,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (newTransaction == null) {
             throw Log.log.providerCreatedNullTransaction();
         }
-        return new LocalTransaction(this, newTransaction);
+        return notifyCreationListeners(new LocalTransaction(this, newTransaction));
     }
 
     /**
@@ -130,7 +170,17 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         Assert.checkMinimumParameter("timeout", 0, timeout);
         XAImporter xaImporter = provider.getXAImporter();
         final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout, doNotImport);
-        return result.withTransaction(getOrAttach(result.getTransaction()));
+        if (result == null) {
+            if (! doNotImport) {
+                throw Log.log.providerCreatedNullTransaction();
+            }
+            return null;
+        }
+        final ImportResult<LocalTransaction> finalResult = result.withTransaction(getOrAttach(result.getTransaction()));
+        if (finalResult.isNew()) {
+            notifyCreationListeners(finalResult.getTransaction());
+        }
+        return finalResult;
     }
 
     /**
@@ -143,7 +193,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      */
     @NotNull
     public ImportResult<LocalTransaction> findOrImportTransaction(Xid xid, int timeout) throws XAException {
-        return findOrImportTransaction(xid, timeout, false);
+        return Assert.assertNotNull(findOrImportTransaction(xid, timeout, false));
     }
 
     /**
@@ -168,14 +218,19 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
 
     LocalTransaction getOrAttach(Transaction transaction) {
         LocalTransaction txn = (LocalTransaction) provider.getResource(transaction, LOCAL_TXN_KEY);
+        boolean isNew = false;
         if (txn == null) {
             // use LOCAL_TXN_KEY so we can be reasonably assured that there will be no deadlock
             synchronized (LOCAL_TXN_KEY) {
                 txn = (LocalTransaction) provider.getResource(transaction, LOCAL_TXN_KEY);
                 if (txn == null) {
                     provider.putResource(transaction, LOCAL_TXN_KEY, txn = new LocalTransaction(this, transaction));
+                    isNew = true;
                 }
             }
+        }
+        if (isNew) {
+            notifyCreationListeners(txn);
         }
         return txn;
     }

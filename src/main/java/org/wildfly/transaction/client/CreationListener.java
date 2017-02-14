@@ -19,18 +19,16 @@
 package org.wildfly.transaction.client;
 
 /**
- * A transaction-to-thread association listener, which may be called when the association with a thread is changed.
+ * A transaction creation listener, which is called when a new transaction is begun or imported.
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 @FunctionalInterface
-public interface AssociationListener {
+public interface CreationListener {
     /**
-     * The association of the transaction to the thread has changed.
+     * A transaction has been created.
      *
-     * @param transaction the transaction that was associated or disassociated (not {@code null})
-     * @param associated {@code true} if the transaction is now associated with the thread, {@code false} if the transaction
-     * is no longer associated with the thread
+     * @param transaction the transaction that was created (not {@code null})
      */
-    void associationChanged(AbstractTransaction transaction, boolean associated);
+    void transactionCreated(AbstractTransaction transaction);
 }

@@ -70,10 +70,12 @@ public final class RemoteTransaction extends AbstractTransaction {
     }
 
     void suspend() {
+        notifyAssociationListeners(false);
         // no operation
     }
 
     void resume() {
+        notifyAssociationListeners(true);
         // no operation
     }
 

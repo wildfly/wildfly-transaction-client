@@ -33,7 +33,8 @@ public final class TransactionPermission extends AbstractNameSetOnlyPermission<T
         "getRecoveryInterface",
         "getTransactionResolver",
         "getProviderInterface",
-        "registerAssociationListener"
+        "registerAssociationListener",
+        "registerCreationListener"
     );
 
     static final StringMapping<TransactionPermission> mapping = new StringMapping<>(NAMES, TransactionPermission::new);
