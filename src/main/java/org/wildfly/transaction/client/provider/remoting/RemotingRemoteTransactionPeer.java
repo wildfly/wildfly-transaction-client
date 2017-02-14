@@ -160,7 +160,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @NotNull
-    public SimpleTransactionControl begin() throws SystemException {
+    public SimpleTransactionControl begin(final int timeout) throws SystemException {
         // this one is bound to the connection
         try {
             return getOperations().begin();

@@ -55,11 +55,12 @@ public interface RemoteTransactionPeer {
     /**
      * Establish a remote user-controlled transaction without local enlistment.
      *
+     * @param timeout the timeout of the transaction in seconds
      * @return the transaction handle (must not be {@code null})
      * @throws SystemException if an unexpected error occurs
      */
     @NotNull
-    SimpleTransactionControl begin() throws SystemException;
+    SimpleTransactionControl begin(int timeout) throws SystemException;
 
     /**
      * Get the provider interface with the given type for this peer.

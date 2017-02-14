@@ -59,8 +59,8 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
         if (provider == null) {
             throw Log.log.noProviderForUri(location);
         }
-        final SimpleTransactionControl control = provider.getPeerHandle(location).begin();
         final int timeout = stateRef.get().timeout;
+        final SimpleTransactionControl control = provider.getPeerHandle(location).begin(timeout);
         transactionManager.resume(context.notifyCreationListeners(new RemoteTransaction(control, location, timeout)));
     }
 
