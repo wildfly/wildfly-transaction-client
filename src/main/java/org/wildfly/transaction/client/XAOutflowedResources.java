@@ -63,7 +63,7 @@ final class XAOutflowedResources {
             transaction.registerSynchronization(new Synchronization() {
                 public void beforeCompletion() {
                     try {
-                        if (finalXaResource.commit()) {
+                        if (finalXaResource.commitToEnlistment()) {
                             finalXaResource.beforeCompletion(finalXaResource.getXid());
                         } else {
                             // try and delist, so the TM can maybe perform a 1PC; if it fails that's OK

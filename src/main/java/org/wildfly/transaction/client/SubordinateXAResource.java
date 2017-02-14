@@ -111,7 +111,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
         };
     }
 
-    boolean commit() {
+    boolean commitToEnlistment() {
         return OutflowHandleManager.commit(stateRef);
     }
 
@@ -134,23 +134,23 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     public void beforeCompletion(final Xid xid) throws XAException {
-        if (commit()) lookup(xid).beforeCompletion();
+        if (commitToEnlistment()) lookup(xid).beforeCompletion();
     }
 
     public int prepare(final Xid xid) throws XAException {
-        return commit() ? lookup(xid).prepare() : XA_RDONLY;
+        return commitToEnlistment() ? lookup(xid).prepare() : XA_RDONLY;
     }
 
     public void commit(final Xid xid, final boolean onePhase) throws XAException {
-        if (commit()) lookup(xid).commit(onePhase);
+        if (commitToEnlistment()) lookup(xid).commit(onePhase);
     }
 
     public void rollback(final Xid xid) throws XAException {
-        if (commit()) lookup(xid).rollback();
+        if (commitToEnlistment()) lookup(xid).rollback();
     }
 
     public void forget(final Xid xid) throws XAException {
-        if (commit()) lookup(xid).forget();
+        if (commitToEnlistment()) lookup(xid).forget();
     }
 
     private SubordinateTransactionControl lookup(final Xid xid) throws XAException {
