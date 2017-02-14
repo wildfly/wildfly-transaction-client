@@ -154,16 +154,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     private SubordinateTransactionControl lookup(final Xid xid) throws XAException {
-        final RemoteTransactionProvider provider = getProvider();
-        final int configuredTimeout = this.timeout;
-        int timeout;
-        if (configuredTimeout == 0) {
-            timeout = 0;
-        } else {
-            // the remaining timeout is equal to the configured timeout minus the time since start() was called, but no less than 1
-            timeout = (int) min(max(1L, max(0L, System.nanoTime() - startTime) - configuredTimeout * 1_000_000L), Integer.MAX_VALUE);
-        }
-        return provider.getPeerHandleForXa(location).lookupXid(xid);
+        return getProvider().getPeerHandleForXa(location).lookupXid(xid);
     }
 
     private RemoteTransactionProvider getProvider() {
