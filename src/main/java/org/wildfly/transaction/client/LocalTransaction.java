@@ -147,7 +147,7 @@ public final class LocalTransaction extends AbstractTransaction {
         }
         TransactionManager transactionManager = owner.getProvider().getTransactionManager();
         if (! transaction.equals(transactionManager.getTransaction())) {
-            throw Log.log.invalidTxnState();
+            throw Log.log.unexpectedProviderTransactionMismatch(transaction, transactionManager.getTransaction());
         }
         final Transaction transactionManagerTransaction = transactionManager.suspend();
         if (! transaction.equals(transactionManagerTransaction)) {
