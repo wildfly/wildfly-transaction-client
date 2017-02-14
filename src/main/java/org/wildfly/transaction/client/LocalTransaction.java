@@ -27,6 +27,7 @@ import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client._private.Log;
@@ -114,6 +115,15 @@ public final class LocalTransaction extends AbstractTransaction {
      */
     public String getParentName() {
         return owner.getProvider().getNameFromXid(owner.getProvider().getXid(transaction));
+    }
+
+    /**
+     * Get the XID of the local transaction.
+     *
+     * @return the transaction XID (not {@code null})
+     */
+    public Xid getXid() {
+        return owner.getProvider().getXid(transaction);
     }
 
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {
