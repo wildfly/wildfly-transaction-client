@@ -212,4 +212,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     LocalTransactionProvider getProvider() {
         return provider;
     }
+
+    public String toString() {
+        return String.format("Local transaction context for provider %s", provider);
+    }
 }

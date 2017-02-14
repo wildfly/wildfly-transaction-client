@@ -303,6 +303,10 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return providerInterfaceType.isInstance(transaction) ? providerInterfaceType.cast(transaction) : null;
     }
 
+    public String toString() {
+        return "JBoss transaction provider";
+    }
+
     static final int BIT_BEFORE_COMP = 1 << 0;
     static final int BIT_PREPARE_OR_ROLLBACK = 1 << 1;
     static final int BIT_COMMIT_OR_FORGET = 1 << 2;

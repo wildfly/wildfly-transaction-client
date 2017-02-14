@@ -137,6 +137,10 @@ public final class RemoteTransaction extends AbstractTransaction {
         return obj == this;
     }
 
+    public String toString() {
+        return String.format("Remote transaction \"%s\" (delegate=%s)", location, control);
+    }
+
     URI getLocation() {
         return location;
     }

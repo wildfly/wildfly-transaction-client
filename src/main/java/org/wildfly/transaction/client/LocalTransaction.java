@@ -213,4 +213,8 @@ public final class LocalTransaction extends AbstractTransaction {
     private boolean equals(final LocalTransaction obj) {
         return this == obj || obj != null && transaction.equals(obj.transaction);
     }
+
+    public String toString() {
+        return String.format("Local transaction (delegate=%s, owner=%s)", transaction, owner);
+    }
 }
