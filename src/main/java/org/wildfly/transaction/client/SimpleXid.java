@@ -127,4 +127,26 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
         }
         return signum(l1 - l2);
     }
+
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        b.append("XID [").append(Integer.toHexString(formatId)).append(':');
+        for (final byte x : globalId) {
+            final int v = x & 0xff;
+            if (v < 16) {
+                b.append('0');
+            }
+            b.append(Integer.toHexString(v));
+        }
+        b.append(':');
+        for (final byte x : branchId) {
+            final int v = x & 0xff;
+            if (v < 16) {
+                b.append('0');
+            }
+            b.append(Integer.toHexString(v));
+        }
+        b.append(']');
+        return b.toString();
+    }
 }
