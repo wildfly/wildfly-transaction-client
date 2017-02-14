@@ -208,14 +208,16 @@ final class TransactionClientChannel implements RemotingOperations {
                 int error = 0;
                 boolean sec = false;
                 if (id == Protocol.P_XA_ERROR) {
-                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    error = Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
                 } else if (id == Protocol.P_SEC_EXC) {
                     sec = true;
-                }
-                if (id != -1) do {
                     // skip content
                     Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                } while (is.read() != -1);
+                }
+                while (is.read() != -1) {
+                    // skip content
+                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
+                }
                 if (sec) {
                     throw Log.log.peerSecurityException();
                 }
