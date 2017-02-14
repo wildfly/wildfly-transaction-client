@@ -40,6 +40,7 @@ import org.wildfly.common.function.ExceptionSupplier;
 import org.wildfly.common.function.ExceptionToIntBiFunction;
 import org.wildfly.common.function.ExceptionToIntFunction;
 import org.wildfly.transaction.TransactionPermission;
+import org.wildfly.transaction.client._private.Log;
 
 /**
  * A managed transaction.
@@ -123,13 +124,37 @@ public abstract class AbstractTransaction implements Transaction {
         associationListeners.add(associationListener);
     }
 
-    public <T, U, R, E extends Exception> R performFunction(ExceptionBiFunction<T, U, R, E> function, T param1, U param2) throws E, SystemException {
+    interface SysExTry extends AutoCloseable {
+        void close() throws SystemException;
+    }
+
+    private static void doNothing() {}
+
+    private static SysExTry whileSuspended() throws SystemException {
         final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
         final AbstractTransaction suspended = tm.suspend();
-        try {
-            return function.apply(param1, param2);
-        } finally {
-            tm.resume(suspended);
+        return suspended == null ? AbstractTransaction::doNothing : () -> tm.resume(suspended);
+    }
+
+    private static SysExTry whileResumed(AbstractTransaction transaction) throws SystemException {
+        if (transaction == null) {
+            return AbstractTransaction::doNothing;
+        }
+        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
+        tm.resume(transaction);
+        return () -> {
+            final AbstractTransaction suspended = tm.suspend();
+            if (transaction != suspended) {
+                throw Log.log.unexpectedProviderTransactionMismatch(transaction, suspended);
+            }
+        };
+    }
+
+    public <T, U, R, E extends Exception> R performFunction(ExceptionBiFunction<T, U, R, E> function, T param1, U param2) throws E, SystemException {
+        try (SysExTry ignored = whileSuspended()) {
+            try (SysExTry ignored2 = whileResumed(this)) {
+                return function.apply(param1, param2);
+            }
         }
     }
 
@@ -142,22 +167,18 @@ public abstract class AbstractTransaction implements Transaction {
     }
 
     public <T, E extends Exception> void performConsumer(ExceptionObjIntConsumer<T, E> consumer, T param1, int param2) throws E, SystemException {
-        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        final AbstractTransaction suspended = tm.suspend();
-        try {
-            consumer.accept(param1, param2);
-        } finally {
-            tm.resume(suspended);
+        try (SysExTry ignored = whileSuspended()) {
+            try (SysExTry ignored2 = whileResumed(this)) {
+                consumer.accept(param1, param2);
+            }
         }
     }
 
     public <T, U, E extends Exception> void performConsumer(ExceptionBiConsumer<T, U, E> consumer, T param1, U param2) throws E, SystemException {
-        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        final AbstractTransaction suspended = tm.suspend();
-        try {
-            consumer.accept(param1, param2);
-        } finally {
-            tm.resume(suspended);
+        try (SysExTry ignored = whileSuspended()) {
+            try (SysExTry ignored2 = whileResumed(this)) {
+                consumer.accept(param1, param2);
+            }
         }
     }
 
@@ -166,12 +187,10 @@ public abstract class AbstractTransaction implements Transaction {
     }
 
     public <T, U, E extends Exception> int performToIntFunction(ExceptionToIntBiFunction<T, U, E> function, T param1, U param2) throws E, SystemException {
-        final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        final AbstractTransaction suspended = tm.suspend();
-        try {
-            return function.apply(param1, param2);
-        } finally {
-            tm.resume(suspended);
+        try (SysExTry ignored = whileSuspended()) {
+            try (SysExTry ignored2 = whileResumed(this)) {
+                return function.apply(param1, param2);
+            }
         }
     }
 
