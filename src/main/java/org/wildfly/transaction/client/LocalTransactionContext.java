@@ -146,7 +146,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      *
      * @param timeout the transaction timeout to use for this transaction
      * @return the local transaction (not {@code null})
-     * @throws SystemException if the transaction creation failed for some reason
+     * @throws SystemException if the transaction creation failed for some reason, one of the possible reasons being
+     *                         suspended server
      * @throws SecurityException if the caller is not authorized to create a local transaction in this context
      */
     @NotNull
@@ -298,7 +299,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (sm != null) {
             sm.checkPermission(RESUME_REQUESTS_PERMISSION);
         }
-        requestsSuspended = true;
+        requestsSuspended = false;
     }
 
     LocalTransactionProvider getProvider() {
