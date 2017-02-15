@@ -44,36 +44,37 @@ class TxnNamingContext extends AbstractContext {
     private static final String TRANSACTION_MANAGER = "TransactionManager";
     private static final String USER_TRANSACTION = "UserTransaction";
     private static final String TRANSACTION_SYNCHRONIZATION_REGISTRY = "TransactionSynchronizationRegistry";
-    private final NamingProvider namingProvider;
 
-    TxnNamingContext(final NamingProvider namingProvider) {
-        this.namingProvider = namingProvider;
+    TxnNamingContext(final NamingProvider[] namingProviders) {
+        super(namingProviders);
     }
 
     protected Object lookupNative(final Name name) throws NamingException {
         final String str = name.get(0);
-        switch (str) {
-            case USER_TRANSACTION: {
-                if (namingProvider != null) {
-                    return getRemoteUserTransaction();
-                } else {
-                    return LocalUserTransaction.getInstance();
+        return performNamingFunction((NamingProvider namingProvider) -> {
+            switch (str) {
+                case USER_TRANSACTION: {
+                    if (namingProvider != null) {
+                        return getRemoteUserTransaction(namingProvider);
+                    } else {
+                        return LocalUserTransaction.getInstance();
+                    }
+                }
+                case TRANSACTION_MANAGER: {
+                    if (namingProvider == null) {
+                        return ContextTransactionManager.getInstance();
+                    }
+                    break;
+                }
+                case TRANSACTION_SYNCHRONIZATION_REGISTRY: {
+                    if (namingProvider == null) {
+                        return ContextTransactionSynchronizationRegistry.getInstance();
+                    }
+                    break;
                 }
             }
-            case TRANSACTION_MANAGER: {
-                if (namingProvider == null) {
-                    return ContextTransactionManager.getInstance();
-                }
-                break;
-            }
-            case TRANSACTION_SYNCHRONIZATION_REGISTRY: {
-                if (namingProvider == null) {
-                    return ContextTransactionSynchronizationRegistry.getInstance();
-                }
-                break;
-            }
-        }
-        throw nameNotFound(name);
+            throw nameNotFound(name);
+        });
     }
 
     protected Object lookupLinkNative(final Name name) throws NamingException {
@@ -84,34 +85,36 @@ class TxnNamingContext extends AbstractContext {
         if (!name.isEmpty()) {
             throw nameNotFound(name);
         }
-        return CloseableNamingEnumeration.fromIterable(
-            namingProvider == null ?
-                Arrays.asList(
-                    nameClassPair(UserTransaction.class),
-                    nameClassPair(TransactionManager.class),
-                    nameClassPair(TransactionSynchronizationRegistry.class)
-                ) :
-                Collections.singleton(
-                    nameClassPair(UserTransaction.class)
-                )
-        );
+        return performNamingFunction((NamingProvider namingProvider) ->
+                CloseableNamingEnumeration.fromIterable(
+                        namingProvider == null ?
+                                Arrays.asList(
+                                        nameClassPair(UserTransaction.class),
+                                        nameClassPair(TransactionManager.class),
+                                        nameClassPair(TransactionSynchronizationRegistry.class)
+                                ) :
+                                Collections.singleton(
+                                        nameClassPair(UserTransaction.class)
+                                )
+                ));
     }
 
     protected CloseableNamingEnumeration<Binding> listBindingsNative(final Name name) throws NamingException {
         if (!name.isEmpty()) {
             throw nameNotFound(name);
         }
-        return CloseableNamingEnumeration.fromIterable(
-            namingProvider == null ?
-                Arrays.asList(
-                    binding(UserTransaction.class, LocalUserTransaction.getInstance()),
-                    binding(TransactionManager.class, ContextTransactionManager.getInstance()),
-                    binding(TransactionSynchronizationRegistry.class, ContextTransactionSynchronizationRegistry.getInstance())
-                ) :
-                Collections.singleton(
-                    binding(UserTransaction.class, getRemoteUserTransaction())
-                )
-        );
+        return performNamingFunction((NamingProvider namingProvider) ->
+                CloseableNamingEnumeration.fromIterable(
+                        namingProvider == null ?
+                                Arrays.asList(
+                                        binding(UserTransaction.class, LocalUserTransaction.getInstance()),
+                                        binding(TransactionManager.class, ContextTransactionManager.getInstance()),
+                                        binding(TransactionSynchronizationRegistry.class, ContextTransactionSynchronizationRegistry.getInstance())
+                                ) :
+                                Collections.singleton(
+                                        binding(UserTransaction.class, getRemoteUserTransaction(namingProvider))
+                                )
+                ));
     }
 
     private NameClassPair nameClassPair(Class<?> clazz) {
@@ -122,7 +125,7 @@ class TxnNamingContext extends AbstractContext {
         return new ReadOnlyBinding(clazz.getSimpleName(), clazz.getName(), content, "txn:" + clazz.getSimpleName());
     }
 
-    private UserTransaction getRemoteUserTransaction() {
+    private UserTransaction getRemoteUserTransaction(NamingProvider namingProvider) {
         return RemoteTransactionContext.getInstance().getUserTransaction(namingProvider.getProviderUri());
     }
 

@@ -18,6 +18,8 @@
 
 package org.wildfly.transaction.client.naming.txn;
 
+import java.util.Collection;
+
 import javax.naming.Context;
 import javax.naming.NamingException;
 
@@ -33,11 +35,11 @@ import org.wildfly.naming.client.util.FastHashtable;
  */
 @MetaInfServices
 public final class TxnNamingContextFactory implements NamingContextFactory {
-    public boolean supportsUriScheme(final NamingProvider namingProvider, final String nameScheme) {
+    public boolean supportsUriScheme(final Collection<NamingProvider> namingProviders, final String nameScheme) {
         return nameScheme != null && nameScheme.equals("txn");
     }
 
-    public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) throws NamingException {
-        return new TxnNamingContext(namingProvider);
+    public Context createRootContext(final Collection<NamingProvider> namingProviders, final String nameScheme, final FastHashtable<String, Object> env) throws NamingException {
+        return new TxnNamingContext(namingProviders == null ? null : namingProviders.toArray(new NamingProvider[namingProviders.size()]));
     }
 }
