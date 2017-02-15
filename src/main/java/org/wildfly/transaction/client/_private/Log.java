@@ -325,4 +325,10 @@ public interface Log extends BasicLogger {
 
     @Message(id = 81, value = "Invalid transaction state for operation")
     XAException invalidTxStateXa(@Field int errorCode);
+
+    @Message(id = 82, value = "Cannot import a new transaction on a suspended server")
+    SystemException suspendedCannotCreateNew();
+
+    @Message(id = 83, value = "Cannot import a new transaction on a suspended server")
+    XAException suspendedCannotImportXa(@Field int errorCode);
 }

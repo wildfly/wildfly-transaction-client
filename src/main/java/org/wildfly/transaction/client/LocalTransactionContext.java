@@ -50,6 +50,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
 
     private static final Object LOCAL_TXN_KEY = new Object();
     private static final TransactionPermission CREATION_LISTENER_PERMISSION = TransactionPermission.forName("registerCreationListener");
+    private static final TransactionPermission SUSPEND_REQUESTS_PERMISSION = TransactionPermission.forName("suspendRequests");
+    private static final TransactionPermission RESUME_REQUESTS_PERMISSION = TransactionPermission.forName("resumeRequests");
 
     static {
         doPrivileged((PrivilegedAction<?>) () -> {
@@ -61,6 +63,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     private final LocalTransactionProvider provider;
 
     private final List<CreationListener> creationListeners = new CopyOnWriteArrayList<>();
+
+    private volatile boolean requestsSuspended;
 
     /**
      * Construct a new instance.  The given provider will be used to manage local transactions.
@@ -148,6 +152,9 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     @NotNull
     public LocalTransaction beginTransaction(final int timeout) throws SystemException, SecurityException {
         Assert.checkMinimumParameter("timeout", 0, timeout);
+        if (requestsSuspended) {
+            throw Log.log.suspendedCannotCreateNew();
+        }
         final Transaction newTransaction = provider.createNewTransaction(timeout);
         //noinspection ConstantConditions
         if (newTransaction == null) {
@@ -169,9 +176,13 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         Assert.checkNotNullParam("xid", xid);
         Assert.checkMinimumParameter("timeout", 0, timeout);
         XAImporter xaImporter = provider.getXAImporter();
-        final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout, doNotImport);
+        final boolean requestsSuspended = this.requestsSuspended;
+        final ImportResult<?> result = xaImporter.findOrImportTransaction(xid, timeout, doNotImport || requestsSuspended);
         if (result == null) {
             if (! doNotImport) {
+                if (requestsSuspended) {
+                    throw Log.log.suspendedCannotImportXa(XAException.XAER_RMERR);
+                }
                 throw Log.log.providerCreatedNullTransaction();
             }
             return null;
@@ -262,6 +273,32 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
                 xaImporter.forget(xid);
             }
         };
+    }
+
+    /**
+     * Cause requests to create new transactions to be refused.
+     *
+     * @throws SecurityException if a security manager is present and the caller does not have the {@code suspendRequests} {@link TransactionPermission}
+     */
+    public void suspendRequests() throws SecurityException {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(SUSPEND_REQUESTS_PERMISSION);
+        }
+        requestsSuspended = true;
+    }
+
+    /**
+     * Cause requests to create new transactions to be allowed after a previous call to {@link #suspendRequests()}.
+     *
+     * @throws SecurityException if a security manager is present and the caller does not have the {@code resumeRequests} {@link TransactionPermission}
+     */
+    public void resumeRequests() throws SecurityException {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(RESUME_REQUESTS_PERMISSION);
+        }
+        requestsSuspended = true;
     }
 
     LocalTransactionProvider getProvider() {

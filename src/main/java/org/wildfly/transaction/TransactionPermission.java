@@ -34,7 +34,9 @@ public final class TransactionPermission extends AbstractNameSetOnlyPermission<T
         "getTransactionResolver",
         "getProviderInterface",
         "registerAssociationListener",
-        "registerCreationListener"
+        "registerCreationListener",
+        "suspendRequests",
+        "resumeRequests"
     );
 
     static final StringMapping<TransactionPermission> mapping = new StringMapping<>(NAMES, TransactionPermission::new);
