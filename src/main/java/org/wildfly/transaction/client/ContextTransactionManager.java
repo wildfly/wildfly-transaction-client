@@ -124,8 +124,13 @@ public final class ContextTransactionManager implements TransactionManager {
     void resume(final AbstractTransaction transaction) throws IllegalStateException, SystemException {
         final State state = stateRef.get();
         if (state.transaction != null) throw Log.log.alreadyAssociated();
-        if (transaction != null) transaction.resume();
         state.transaction = transaction;
+        if (transaction != null) try {
+            transaction.resume();
+        } catch (Throwable t) {
+            state.transaction = null;
+            throw t;
+        }
     }
 
     /**
