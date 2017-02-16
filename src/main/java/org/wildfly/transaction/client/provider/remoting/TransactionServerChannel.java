@@ -218,9 +218,9 @@ final class TransactionServerChannel {
             securityIdentity = channel.getConnection().getLocalIdentity();
         }
         securityIdentity.runAs(() -> {
-            final Transaction transaction = txn.getTransaction();
+            final LocalTransaction transaction = txn.getTransaction();
             if (transaction != null) try {
-                transaction.rollback();
+                transaction.performAction(transaction::rollback);
                 writeSimpleResponse(M_RESP_UT_ROLLBACK, invId);
             } catch (SystemException e) {
                 writeSimpleResponse(M_RESP_UT_ROLLBACK, invId, P_UT_SYS_EXC);
@@ -274,13 +274,10 @@ final class TransactionServerChannel {
             securityIdentity = channel.getConnection().getLocalIdentity();
         }
         securityIdentity.runAs(() -> {
-            final Transaction transaction = txn.getTransaction();
+            final LocalTransaction transaction = txn.getTransaction();
             if (transaction != null) try {
-                transaction.commit();
+                transaction.performAction(transaction::commit);
                 writeSimpleResponse(M_RESP_UT_COMMIT, invId);
-            } catch (SystemException e) {
-                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_SYS_EXC);
-                return;
             } catch (HeuristicRollbackException e) {
                 writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_HRE_EXC);
                 return;
@@ -289,6 +286,9 @@ final class TransactionServerChannel {
                 return;
             } catch (HeuristicMixedException e) {
                 writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_HME_EXC);
+                return;
+            } catch (Exception e) {
+                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_SYS_EXC);
                 return;
             } else {
                 writeParamError(invId);
