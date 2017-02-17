@@ -63,7 +63,7 @@ public final class RemotingTransactionServer {
             return txn.getTransaction();
         }
         boolean ok = false;
-        LocalTransaction transaction = transactionService.getTransactionContext().beginTransaction(timeout);
+        LocalTransaction transaction = transactionService.getTransactionContext().beginTransaction(timeout, true);
         try {
             final LocalTxn appearing = txns.putIfAbsent(new LocalTxn(id, transaction));
             if (appearing != null) {
