@@ -34,6 +34,7 @@ import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
 import org.wildfly.common.Assert;
+import org.wildfly.common.rpc.RemoteExceptionCause;
 import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
@@ -109,33 +110,45 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                             throw Log.log.unknownResponse();
                         }
                         int id = is.read();
-                        if (id != -1) do {
-                            // skip content
-                            Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                        } while (is.read() != -1);
                         if (id == -1) {
                             statusRef.set(Status.STATUS_COMMITTED);
-                        } else if (id == Protocol.P_UT_HME_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerHeuristicMixedException();
-                        } else if (id == Protocol.P_UT_HRE_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerHeuristicRollbackException();
-                        } else if (id == Protocol.P_UT_IS_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerIllegalStateException();
-                        } else if (id == Protocol.P_UT_RB_EXC) {
-                            statusRef.set(Status.STATUS_ROLLEDBACK);
-                            throw Log.log.transactionRolledBackByPeer();
-                        } else if (id == Protocol.P_UT_SYS_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerSystemException();
-                        } else if (id == Protocol.P_SEC_EXC) {
-                            statusRef.set(oldVal);
-                            throw Log.log.peerSecurityException();
                         } else {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.unknownResponse();
+                            int len = StreamUtils.readPackedUnsignedInt32(is);
+                            if (id == Protocol.P_UT_HME_EXC) {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                final HeuristicMixedException e = Log.log.peerHeuristicMixedException();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_UT_HRE_EXC) {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                final HeuristicRollbackException e = Log.log.peerHeuristicRollbackException();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_UT_IS_EXC) {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                final IllegalStateException e = Log.log.peerIllegalStateException();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_UT_RB_EXC) {
+                                statusRef.set(Status.STATUS_ROLLEDBACK);
+                                final RollbackException e = Log.log.transactionRolledBackByPeer();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_UT_SYS_EXC) {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                final SystemException e = Log.log.peerSystemException();
+                                e.errorCode = is.readInt();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_SEC_EXC) {
+                                statusRef.set(oldVal);
+                                final SecurityException e = Log.log.peerSecurityException();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                throw Log.log.unknownResponse();
+                            }
                         }
                     } catch (IOException e) {
                         statusRef.set(Status.STATUS_UNKNOWN);
@@ -187,24 +200,30 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                             throw Log.log.unknownResponse();
                         }
                         int id = is.read();
-                        if (id != -1) do {
-                            // skip content
-                            Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                        } while (is.read() != -1);
                         if (id == -1) {
                             statusRef.set(Status.STATUS_ROLLEDBACK);
-                        } else if (id == Protocol.P_UT_IS_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerIllegalStateException();
-                        } else if (id == Protocol.P_UT_SYS_EXC) {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.peerSystemException();
-                        } else if (id == Protocol.P_SEC_EXC) {
-                            statusRef.set(oldVal);
-                            throw Log.log.peerSecurityException();
                         } else {
-                            statusRef.set(Status.STATUS_UNKNOWN);
-                            throw Log.log.unknownResponse();
+                            int len = StreamUtils.readPackedUnsignedInt32(is);
+                            if (id == Protocol.P_UT_IS_EXC) {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                final IllegalStateException e = Log.log.peerIllegalStateException();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_UT_SYS_EXC) {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                final SystemException e = Log.log.peerSystemException();
+                                e.errorCode = is.readInt();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else if (id == Protocol.P_SEC_EXC) {
+                                statusRef.set(oldVal);
+                                final SecurityException e = Log.log.peerSecurityException();
+                                e.initCause(RemoteExceptionCause.readFromStream(is));
+                                throw e;
+                            } else {
+                                statusRef.set(Status.STATUS_UNKNOWN);
+                                throw Log.log.unknownResponse();
+                            }
                         }
                     } catch (IOException e) {
                         statusRef.set(Status.STATUS_UNKNOWN);

@@ -40,6 +40,7 @@ import org.jboss.remoting3.util.BlockingInvocation;
 import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.common.rpc.RemoteExceptionCause;
 import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
@@ -156,20 +157,24 @@ final class TransactionClientChannel implements RemotingOperations {
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
                     int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    final XAException xa = Log.log.protocolErrorXA(error);
+                    xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
-                        ex.addSuppressed(Log.log.peerXaException(error));
+                        ex.addSuppressed(xa);
                         throw ex;
                     } else {
-                        throw Log.log.protocolErrorXA(error);
+                        throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    final SecurityException sx = Log.log.peerSecurityException();
+                    sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
-                        ex.addSuppressed(Log.log.peerSecurityException());
+                        ex.addSuppressed(sx);
                         throw ex;
                     } else {
-                        throw Log.log.peerSecurityException();
+                        throw sx;
                     }
                 } else if (id != -1) {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -205,24 +210,29 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
                 int id = is.read();
-                int error = 0;
-                boolean sec = false;
                 if (id == Protocol.P_XA_ERROR) {
-                    error = Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
+                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    final XAException xa = Log.log.protocolErrorXA(error);
+                    xa.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(xa);
+                        throw ex;
+                    } else {
+                        throw xa;
+                    }
                 } else if (id == Protocol.P_SEC_EXC) {
-                    sec = true;
-                    // skip content
-                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                }
-                while (is.read() != -1) {
-                    // skip content
-                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                }
-                if (sec) {
-                    throw Log.log.peerSecurityException();
-                }
-                if (error != 0) {
-                    throw Log.log.peerXaException(error);
+                    final SecurityException sx = Log.log.peerSecurityException();
+                    sx.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(sx);
+                        throw ex;
+                    } else {
+                        throw sx;
+                    }
+                } else if (id != -1) {
+                    throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
                 throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
@@ -256,24 +266,31 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
                 int id = is.read();
-                int error = 0;
-                boolean sec = false;
                 if (id == Protocol.P_XA_ERROR) {
-                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    final XAException xa = Log.log.protocolErrorXA(error);
+                    xa.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(xa);
+                        throw ex;
+                    } else {
+                        throw xa;
+                    }
                 } else if (id == Protocol.P_SEC_EXC) {
-                    sec = true;
+                    final SecurityException sx = Log.log.peerSecurityException();
+                    sx.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(sx);
+                        throw ex;
+                    } else {
+                        throw sx;
+                    }
                 } else if (id == Protocol.P_XA_RDONLY) {
                     readOnly = true;
-                }
-                if (id != -1) do {
-                    // skip content
-                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                } while (is.read() != -1);
-                if (sec) {
-                    throw Log.log.peerSecurityException();
-                }
-                if (error != 0) {
-                    throw Log.log.peerXaException(error);
+                } else if (id != -1) {
+                    throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
                 throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
@@ -307,22 +324,29 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
                 int id = is.read();
-                int error = 0;
-                boolean sec = false;
                 if (id == Protocol.P_XA_ERROR) {
-                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    final XAException xa = Log.log.protocolErrorXA(error);
+                    xa.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(xa);
+                        throw ex;
+                    } else {
+                        throw xa;
+                    }
                 } else if (id == Protocol.P_SEC_EXC) {
-                    sec = true;
-                }
-                if (id != -1) do {
-                    // skip content
-                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                } while (is.read() != -1);
-                if (sec) {
-                    throw Log.log.peerSecurityException();
-                }
-                if (error != 0) {
-                    throw Log.log.peerXaException(error);
+                    final SecurityException sx = Log.log.peerSecurityException();
+                    sx.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(sx);
+                        throw ex;
+                    } else {
+                        throw sx;
+                    }
+                } else if (id != -1) {
+                    throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
                 throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
@@ -356,22 +380,29 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
                 int id = is.read();
-                int error = 0;
-                boolean sec = false;
                 if (id == Protocol.P_XA_ERROR) {
-                    error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    final XAException xa = Log.log.protocolErrorXA(error);
+                    xa.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(xa);
+                        throw ex;
+                    } else {
+                        throw xa;
+                    }
                 } else if (id == Protocol.P_SEC_EXC) {
-                    sec = true;
-                }
-                if (id != -1) do {
-                    // skip content
-                    Protocol.readIntParam(is, StreamUtils.readPackedUnsignedInt32(is));
-                } while (is.read() != -1);
-                if (sec) {
-                    throw Log.log.peerSecurityException();
-                }
-                if (error != 0) {
-                    throw Log.log.peerXaException(error);
+                    final SecurityException sx = Log.log.peerSecurityException();
+                    sx.initCause(RemoteExceptionCause.readFromStream(is));
+                    if ((id = is.read()) != -1) {
+                        XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                        ex.addSuppressed(sx);
+                        throw ex;
+                    } else {
+                        throw sx;
+                    }
+                } else if (id != -1) {
+                    throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
                 throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
@@ -409,29 +440,36 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unknownResponseXa(XAException.XAER_RMERR);
                 }
                 int id = is.read();
-                int error = 0;
-                boolean sec = false;
                 for (;;) {
-                    if (id == Protocol.P_XA_ERROR) {
-                        error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
-                    } else if (id == Protocol.P_SEC_EXC) {
-                        sec = true;
-                    } else if (id == Protocol.P_XID) {
-                        if (error != 0 && ! sec) {
-                            recoveryList.add(Protocol.readXid(is, StreamUtils.readPackedUnsignedInt32(is)));
+                    if (id == Protocol.P_XID) {
+                        recoveryList.add(Protocol.readXid(is, StreamUtils.readPackedUnsignedInt32(is)));
+                    } else if (id == Protocol.P_XA_ERROR) {
+                        int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                        final XAException xa = Log.log.protocolErrorXA(error);
+                        xa.initCause(RemoteExceptionCause.readFromStream(is));
+                        if ((id = is.read()) != -1) {
+                            XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                            ex.addSuppressed(xa);
+                            throw ex;
+                        } else {
+                            throw xa;
                         }
-                    } else if (id == -1) {
-                        break;
+                    } else if (id == Protocol.P_SEC_EXC) {
+                        final SecurityException sx = Log.log.peerSecurityException();
+                        sx.initCause(RemoteExceptionCause.readFromStream(is));
+                        if ((id = is.read()) != -1) {
+                            XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
+                            ex.addSuppressed(sx);
+                            throw ex;
+                        } else {
+                            throw sx;
+                        }
+                    } else if (id != -1) {
+                        throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                     } else {
-                        error = XAException.XAER_RMERR;
+                        break;
                     }
                     id = is.read();
-                }
-                if (sec) {
-                    throw Log.log.peerSecurityException();
-                }
-                if (error != 0) {
-                    throw Log.log.peerXaException(error);
                 }
             }
             return recoveryList.toArray(SimpleXid.NO_XIDS);

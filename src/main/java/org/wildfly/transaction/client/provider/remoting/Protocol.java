@@ -110,6 +110,10 @@ class Protocol {
     // unused                                 0x06
     public static final int P_XA_RDONLY     = 0x07; // len=0
 
+    // Exception types format:
+    //  byte 0..3 = error code (XA and sys exceptions only)
+    //  byte 4..n = org.wildfly.common.rpc.RemoteExceptionCause cause info (byte 0..n for non-XA/sysex)
+
     public static final int P_UT_RB_EXC     = 0x10; // RollbackException
     public static final int P_UT_HME_EXC    = 0x11; // HeuristicMixedException
     public static final int P_UT_HRE_EXC    = 0x12; // HeuristicRollbackException

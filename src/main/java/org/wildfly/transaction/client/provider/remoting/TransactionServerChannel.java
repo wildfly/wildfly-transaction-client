@@ -18,20 +18,22 @@
 
 package org.wildfly.transaction.client.provider.remoting;
 
+import static org.jboss.remoting3.util.StreamUtils.writeInt8;
+import static org.jboss.remoting3.util.StreamUtils.writePackedUnsignedInt31;
 import static org.wildfly.transaction.client._private.Log.log;
 import static org.wildfly.transaction.client.provider.remoting.Protocol.*;
 import static org.wildfly.transaction.client.provider.remoting.RemotingTransactionServer.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
-import javax.transaction.InvalidTransactionException;
 import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
-import javax.transaction.Transaction;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
@@ -43,8 +45,8 @@ import org.jboss.remoting3.MessageOutputStream;
 import org.jboss.remoting3.RemotingOptions;
 import org.jboss.remoting3.util.MessageTracker;
 import org.jboss.remoting3.util.StreamUtils;
+import org.wildfly.common.rpc.RemoteExceptionCause;
 import org.wildfly.security.auth.server.SecurityIdentity;
-import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
@@ -222,11 +224,16 @@ final class TransactionServerChannel {
             if (transaction != null) try {
                 transaction.performAction(transaction::rollback);
                 writeSimpleResponse(M_RESP_UT_ROLLBACK, invId);
+                return;
             } catch (SystemException e) {
-                writeSimpleResponse(M_RESP_UT_ROLLBACK, invId, P_UT_SYS_EXC);
+                writeExceptionResponse(M_RESP_UT_ROLLBACK, invId, e);
+                return;
+            } catch (Exception e) {
+                writeExceptionResponse(M_RESP_UT_ROLLBACK, invId, log.unexpectedException(e));
                 return;
             } else {
                 writeParamError(invId);
+                return;
             }
         });
     }
@@ -278,17 +285,21 @@ final class TransactionServerChannel {
             if (transaction != null) try {
                 transaction.performAction(transaction::commit);
                 writeSimpleResponse(M_RESP_UT_COMMIT, invId);
+                return;
             } catch (HeuristicRollbackException e) {
-                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_HRE_EXC);
+                writeExceptionResponse(M_RESP_UT_COMMIT, invId, P_UT_HRE_EXC, e);
                 return;
             } catch (RollbackException e) {
-                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_RB_EXC);
+                writeExceptionResponse(M_RESP_UT_COMMIT, invId, P_UT_RB_EXC, e);
                 return;
             } catch (HeuristicMixedException e) {
-                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_HME_EXC);
+                writeExceptionResponse(M_RESP_UT_COMMIT, invId, P_UT_HME_EXC, e);
+                return;
+            } catch (SystemException e) {
+                writeExceptionResponse(M_RESP_UT_COMMIT, invId, e);
                 return;
             } catch (Exception e) {
-                writeSimpleResponse(M_RESP_UT_COMMIT, invId, P_UT_SYS_EXC);
+                writeExceptionResponse(M_RESP_UT_COMMIT, invId, log.unexpectedException(e));
                 return;
             } else {
                 writeParamError(invId);
@@ -339,10 +350,12 @@ final class TransactionServerChannel {
                 importResult.getTransaction().performConsumer(SubordinateTransactionControl::rollback, importResult.getControl());
                 writeSimpleResponse(M_RESP_XA_ROLLBACK, i);
             } catch (SystemException e) {
-                writeXaExceptionResponse(M_RESP_XA_ROLLBACK, i, XAException.XAER_RMFAIL);
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_ROLLBACK, i, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -389,10 +402,12 @@ final class TransactionServerChannel {
                 importResult.getTransaction().performConsumer(SubordinateTransactionControl::end, importResult.getControl(), XAResource.TMFAIL);
                 writeSimpleResponse(M_RESP_XA_RB_ONLY, i);
             } catch (SystemException e) {
-                writeXaExceptionResponse(M_RESP_XA_RB_ONLY, i, XAException.XAER_RMFAIL);
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_RB_ONLY, i, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -439,10 +454,12 @@ final class TransactionServerChannel {
                 importResult.getTransaction().performConsumer(SubordinateTransactionControl::beforeCompletion, importResult.getControl());
                 writeSimpleResponse(M_RESP_XA_BEFORE, i);
             } catch (SystemException e) {
-                writeXaExceptionResponse(M_RESP_XA_BEFORE, i, XAException.XAER_RMFAIL);
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_BEFORE, i, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -494,10 +511,17 @@ final class TransactionServerChannel {
                     writeSimpleResponse(M_RESP_XA_PREPARE, i);
                 }
             } catch (SystemException e) {
-                writeXaExceptionResponse(M_RESP_XA_PREPARE, i, XAException.XAER_RMFAIL);
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_PREPARE, i, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
+                return;
+            } catch (Exception e) {
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -544,10 +568,17 @@ final class TransactionServerChannel {
                 importResult.getTransaction().performConsumer(SubordinateTransactionControl::forget, importResult.getControl());
                 writeSimpleResponse(M_RESP_XA_FORGET, i);
             } catch (SystemException e) {
-                writeXaExceptionResponse(M_RESP_XA_FORGET, i, XAException.XAER_RMFAIL);
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_FORGET, i, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
+                return;
+            } catch (Exception e) {
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
                 return;
             }
         }, xid, invId);
@@ -600,9 +631,18 @@ final class TransactionServerChannel {
                 importResult.getTransaction().performConsumer((c, flag) -> c.commit(flag.booleanValue()), importResult.getControl(), o);
                 writeSimpleResponse(M_RESP_XA_COMMIT, invId);
             } catch (SystemException e) {
-                writeXaExceptionResponse(M_RESP_XA_COMMIT, invId, XAException.XAER_RMFAIL);
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, xae);
+                return;
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_COMMIT, invId, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
+                return;
+            } catch (Exception e) {
+                final XAException xae = new XAException(XAException.XAER_RMERR);
+                xae.initCause(e);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, xae);
+                return;
             }
         }, Boolean.valueOf(onePhase), xid.withoutBranch());
     }
@@ -645,7 +685,7 @@ final class TransactionServerChannel {
                 // get the first batch
                 xids = recoverable.recover(XAResource.TMSTARTRSCAN, finalParentName);
             } catch (XAException e) {
-                writeXaExceptionResponse(M_RESP_XA_RECOVER, invId, e.errorCode);
+                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
                 return;
             }
             try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
@@ -668,12 +708,12 @@ final class TransactionServerChannel {
                         // get the next batch
                         xids = recoverable.recover(XAResource.TMNOFLAGS, finalParentName);
                     } catch (XAException e) {
-                        writeParam(P_XA_ERROR, outputStream, e.errorCode, SIGNED);
                         try {
                             recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
+                            writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
                         } catch (XAException e1) {
-                            // ignored
-                            log.recoverySuppressedException(e1);
+                            e1.addSuppressed(e);
+                            writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e1);
                         }
                         return;
                     }
@@ -681,7 +721,13 @@ final class TransactionServerChannel {
                 try {
                     xids = recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
                 } catch (XAException e) {
-                    writeParam(P_XA_ERROR, outputStream, e.errorCode, SIGNED);
+                    try {
+                        recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
+                        writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
+                    } catch (XAException e1) {
+                        e1.addSuppressed(e);
+                        writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e1);
+                    }
                     return;
                 }
                 for (final Xid xid : xids) {
@@ -714,14 +760,47 @@ final class TransactionServerChannel {
         }
     }
 
-    void writeXaExceptionResponse(final int msgId, final int invId, final int errorCode) {
+    private void writeExceptionResponse(final int msgId, final int invId, final int exceptionKind, final Exception e) {
         try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
             outputStream.writeShort(invId);
             outputStream.writeByte(msgId);
-            writeParam(P_XA_ERROR, outputStream, errorCode, SIGNED);
-        } catch (IOException e) {
-            log.outboundException(e);
+            writeInt8(outputStream, exceptionKind);
+            final RemoteExceptionCause remoteExceptionCause = RemoteExceptionCause.of(e);
+            final ByteArrayOutputStream os = new ByteArrayOutputStream();
+            final DataOutputStream dos = new DataOutputStream(os);
+            remoteExceptionCause.writeToStream(dos);
+            dos.flush();
+            writePackedUnsignedInt31(outputStream, os.size());
+            os.writeTo(outputStream);
+        } catch (IOException ioe) {
+            log.outboundException(ioe);
         }
+    }
+
+    private void writeExceptionResponse(final int msgId, final int invId, final int exceptionKind, final Exception e, int errorCode) {
+        try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
+            outputStream.writeShort(invId);
+            outputStream.writeByte(msgId);
+            writeInt8(outputStream, exceptionKind);
+            final RemoteExceptionCause remoteExceptionCause = RemoteExceptionCause.of(e);
+            final ByteArrayOutputStream os = new ByteArrayOutputStream();
+            final DataOutputStream dos = new DataOutputStream(os);
+            dos.writeInt(errorCode);
+            remoteExceptionCause.writeToStream(dos);
+            dos.flush();
+            writePackedUnsignedInt31(outputStream, os.size());
+            os.writeTo(outputStream);
+        } catch (IOException ioe) {
+            log.outboundException(ioe);
+        }
+    }
+
+    private void writeExceptionResponse(final int msgId, final int invId, final SystemException e) {
+        writeExceptionResponse(msgId, invId, P_UT_SYS_EXC, e, e.errorCode);
+    }
+
+    private void writeExceptionResponse(final int msgId, final int invId, final XAException e) {
+        writeExceptionResponse(msgId, invId, P_XA_ERROR, e, e.errorCode);
     }
 
     void writeSimpleResponse(final int msgId, final int invId) {
