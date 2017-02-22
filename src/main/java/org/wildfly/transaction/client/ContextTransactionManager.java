@@ -133,6 +133,14 @@ public final class ContextTransactionManager implements TransactionManager {
         }
     }
 
+    boolean isAvailable() {
+        return stateRef.get().available;
+    }
+
+    boolean setAvailable(boolean available) {
+        return stateRef.get().available = available;
+    }
+
     /**
      * Get the transaction manager instance.
      *
@@ -149,5 +157,6 @@ public final class ContextTransactionManager implements TransactionManager {
     static final class State {
         AbstractTransaction transaction;
         int timeout = 43200;
+        boolean available = true;
     }
 }

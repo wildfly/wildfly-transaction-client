@@ -331,4 +331,7 @@ public interface Log extends BasicLogger {
 
     @Message(id = 83, value = "Cannot import a new transaction on a suspended server")
     XAException suspendedCannotImportXa(@Field int errorCode);
+
+    @Message(id = 84, value = "UserTransaction access is forbidden in the current context")
+    IllegalStateException forbiddenContextForUserTransaction();
 }
