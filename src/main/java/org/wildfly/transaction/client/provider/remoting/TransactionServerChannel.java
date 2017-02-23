@@ -398,14 +398,8 @@ final class TransactionServerChannel {
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
-                // run operation while associated
-                importResult.getTransaction().performConsumer(SubordinateTransactionControl::end, importResult.getControl(), XAResource.TMFAIL);
+                importResult.getControl().end(XAResource.TMFAIL);
                 writeSimpleResponse(M_RESP_XA_RB_ONLY, i);
-            } catch (SystemException e) {
-                final XAException xae = new XAException(XAException.XAER_RMERR);
-                xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_RB_ONLY, i, xae);
-                return;
             } catch (XAException e) {
                 writeExceptionResponse(M_RESP_XA_RB_ONLY, i, e);
                 return;
@@ -503,18 +497,13 @@ final class TransactionServerChannel {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
                 // run operation while associated
-                int result = importResult.getTransaction().performToIntFunction(SubordinateTransactionControl::prepare, importResult.getControl());
+                int result = importResult.getControl().prepare();
                 if (result == XAResource.XA_RDONLY) {
                     writeSimpleResponse(M_RESP_XA_PREPARE, i, P_XA_RDONLY);
                 } else {
                     // XA_OK
                     writeSimpleResponse(M_RESP_XA_PREPARE, i);
                 }
-            } catch (SystemException e) {
-                final XAException xae = new XAException(XAException.XAER_RMERR);
-                xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_PREPARE, i, xae);
-                return;
             } catch (XAException e) {
                 writeExceptionResponse(M_RESP_XA_PREPARE, i, e);
                 return;
@@ -565,13 +554,8 @@ final class TransactionServerChannel {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
                 // run operation while associated
-                importResult.getTransaction().performConsumer(SubordinateTransactionControl::forget, importResult.getControl());
+                importResult.getControl().forget();
                 writeSimpleResponse(M_RESP_XA_FORGET, i);
-            } catch (SystemException e) {
-                final XAException xae = new XAException(XAException.XAER_RMERR);
-                xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_FORGET, i, xae);
-                return;
             } catch (XAException e) {
                 writeExceptionResponse(M_RESP_XA_FORGET, i, e);
                 return;
@@ -628,13 +612,8 @@ final class TransactionServerChannel {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
                 // run operation while associated
-                importResult.getTransaction().performConsumer((c, flag) -> c.commit(flag.booleanValue()), importResult.getControl(), o);
+                importResult.getControl().commit(o.booleanValue());
                 writeSimpleResponse(M_RESP_XA_COMMIT, invId);
-            } catch (SystemException e) {
-                final XAException xae = new XAException(XAException.XAER_RMERR);
-                xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_COMMIT, invId, xae);
-                return;
             } catch (XAException e) {
                 writeExceptionResponse(M_RESP_XA_COMMIT, invId, e);
                 return;
