@@ -105,20 +105,24 @@ final class TransactionClientChannel implements RemotingOperations {
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
                     int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    final XAException xa = Log.log.protocolErrorXA(error);
+                    xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                         ex.addSuppressed(Log.log.peerXaException(error));
                         throw ex;
                     } else {
-                        throw Log.log.protocolErrorXA(error);
+                        throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    final SecurityException sx = Log.log.peerSecurityException();
+                    sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                         ex.addSuppressed(Log.log.peerSecurityException());
                         throw ex;
                     } else {
-                        throw Log.log.peerSecurityException();
+                        throw sx;
                     }
                 } else if (id != -1) {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
