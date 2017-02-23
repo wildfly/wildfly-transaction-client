@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
+import javax.resource.spi.XATerminator;
 import javax.transaction.NotSupportedException;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
@@ -52,6 +53,8 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     private static final TransactionPermission CREATION_LISTENER_PERMISSION = TransactionPermission.forName("registerCreationListener");
     private static final TransactionPermission SUSPEND_REQUESTS_PERMISSION = TransactionPermission.forName("suspendRequests");
     private static final TransactionPermission RESUME_REQUESTS_PERMISSION = TransactionPermission.forName("resumeRequests");
+    private static final TransactionPermission GET_XA_TERMINATOR_PERMISSION = TransactionPermission.forName("getXATerminator");
+    private static final TransactionPermission GET_RECOVERY_INTERFACE_PERMISSION = TransactionPermission.forName("getRecoveryInterface");
 
     static {
         doPrivileged((PrivilegedAction<?>) () -> {
@@ -61,6 +64,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     }
 
     private final LocalTransactionProvider provider;
+    private final XATerminator xaTerminator = new ContextXATerminator(this);
 
     private final List<CreationListener> creationListeners = new CopyOnWriteArrayList<>();
 
@@ -272,7 +276,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
     public XARecoverable getRecoveryInterface() {
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(TransactionPermission.forName("getRecoveryInterface"));
+            sm.checkPermission(GET_RECOVERY_INTERFACE_PERMISSION);
         }
 
         final XAImporter xaImporter = provider.getXAImporter();
@@ -289,6 +293,15 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
                 xaImporter.forget(xid);
             }
         };
+    }
+
+    @NotNull
+    public XATerminator getXATerminator() {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(GET_XA_TERMINATOR_PERMISSION);
+        }
+        return xaTerminator;
     }
 
     /**
