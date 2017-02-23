@@ -106,7 +106,7 @@ final class TransactionClientChannel implements RemotingOperations {
                 if (id == Protocol.P_XA_ERROR) {
                     int len = StreamUtils.readPackedSignedInt32(is);
                     int error = is.readInt();
-                    final XAException xa = Log.log.protocolErrorXA(error);
+                    final XAException xa = Log.log.peerXaException(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -164,7 +164,7 @@ final class TransactionClientChannel implements RemotingOperations {
                 if (id == Protocol.P_XA_ERROR) {
                     int len = StreamUtils.readPackedSignedInt32(is);
                     int error = is.readInt();
-                    final XAException xa = Log.log.protocolErrorXA(error);
+                    final XAException xa = Log.log.peerXaException(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -221,7 +221,7 @@ final class TransactionClientChannel implements RemotingOperations {
                 if (id == Protocol.P_XA_ERROR) {
                     int len = StreamUtils.readPackedSignedInt32(is);
                     int error = is.readInt();
-                    final XAException xa = Log.log.protocolErrorXA(error);
+                    final XAException xa = Log.log.peerXaException(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -279,7 +279,7 @@ final class TransactionClientChannel implements RemotingOperations {
                 if (id == Protocol.P_XA_ERROR) {
                     int len = StreamUtils.readPackedSignedInt32(is);
                     int error = is.readInt();
-                    final XAException xa = Log.log.protocolErrorXA(error);
+                    final XAException xa = Log.log.peerXaException(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -339,7 +339,7 @@ final class TransactionClientChannel implements RemotingOperations {
                 if (id == Protocol.P_XA_ERROR) {
                     int len = StreamUtils.readPackedSignedInt32(is);
                     int error = is.readInt();
-                    final XAException xa = Log.log.protocolErrorXA(error);
+                    final XAException xa = Log.log.peerXaException(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -397,7 +397,7 @@ final class TransactionClientChannel implements RemotingOperations {
                 if (id == Protocol.P_XA_ERROR) {
                     int len = StreamUtils.readPackedSignedInt32(is);
                     int error = is.readInt();
-                    final XAException xa = Log.log.protocolErrorXA(error);
+                    final XAException xa = Log.log.peerXaException(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
                         XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
@@ -462,7 +462,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     } else if (id == Protocol.P_XA_ERROR) {
                         int len = StreamUtils.readPackedSignedInt32(is);
                         int error = is.readInt();
-                        final XAException xa = Log.log.protocolErrorXA(error);
+                        final XAException xa = Log.log.peerXaException(error);
                         xa.initCause(RemoteExceptionCause.readFromStream(is));
                         if ((id = is.read()) != -1) {
                             XAException ex = Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
