@@ -152,12 +152,7 @@ public abstract class AbstractTransaction implements Transaction {
         }
         final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
         tm.resume(transaction);
-        return () -> {
-            final AbstractTransaction suspended = tm.suspend();
-            if (transaction != suspended) {
-                throw Log.log.unexpectedProviderTransactionMismatch(transaction, suspended);
-            }
-        };
+        return tm::suspend;
     }
 
     public <T, U, R, E extends Exception> R performFunction(ExceptionBiFunction<T, U, R, E> function, T param1, U param2) throws E, SystemException {
