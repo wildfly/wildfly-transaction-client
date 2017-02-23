@@ -337,4 +337,10 @@ public interface Log extends BasicLogger {
 
     @Message(id = 85, value = "Operation failed with an unexpected exception type")
     SystemException unexpectedException(@Cause Exception e);
+
+    @Message(id = 86, value = "Unexpected transaction type encountered; expected %s but encountered %s")
+    IllegalStateException unknownTransactionType(Class<?> expectedType, Class<?> actualType);
+
+    @Message(id = 87, value = "Unknown transaction manager type %s")
+    IllegalArgumentException unknownTransactionManagerType(Class<?> actualType);
 }

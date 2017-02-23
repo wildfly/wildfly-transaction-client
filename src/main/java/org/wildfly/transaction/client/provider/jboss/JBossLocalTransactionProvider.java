@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2016 Red Hat, Inc., and individual contributors
+ * Copyright 2017 Red Hat, Inc., and individual contributors
  * as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,14 +18,13 @@
 
 package org.wildfly.transaction.client.provider.jboss;
 
+import static com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome.INVALID_TRANSACTION;
+import static com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome.PREPARE_NOTOK;
+import static com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome.PREPARE_OK;
+import static com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome.PREPARE_READONLY;
 import static java.lang.Long.signum;
-import static java.security.AccessController.doPrivileged;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.security.PrivilegedAction;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -39,7 +38,6 @@ import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
 import javax.transaction.NotSupportedException;
 import javax.transaction.RollbackException;
-import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
@@ -49,15 +47,10 @@ import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
-import com.arjuna.ats.arjuna.AtomicAction;
 import com.arjuna.ats.arjuna.common.arjPropertyManager;
-import com.arjuna.ats.internal.jta.resources.arjunacore.SynchronizationImple;
-import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionImple;
-import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
-import org.jboss.tm.TransactionTimeoutConfiguration;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.ImportResult;
@@ -72,26 +65,28 @@ import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class JBossLocalTransactionProvider implements LocalTransactionProvider {
+public abstract class JBossLocalTransactionProvider implements LocalTransactionProvider {
     private static final Object ENTRY_KEY = new Object();
 
     private final int staleTransactionTime;
     private final ExtendedJBossXATerminator ext;
-    private final XATerminator xt;
     private final TransactionManager tm;
-    private final TransactionSynchronizationRegistry tsr;
     private final XAImporterImpl xi = new XAImporterImpl();
     private final ConcurrentSkipListSet<XidKey> timeoutSet = new ConcurrentSkipListSet<>();
     private final ConcurrentMap<SimpleXid, Entry> known = new ConcurrentHashMap<>();
 
-    JBossLocalTransactionProvider(final int staleTransactionTime, final XATerminator xt, final ExtendedJBossXATerminator ext, final TransactionManager tm, final TransactionSynchronizationRegistry tsr) {
+    JBossLocalTransactionProvider(final ExtendedJBossXATerminator ext, final int staleTransactionTime, final TransactionManager tm) {
+        Assert.checkMinimumParameter("setTransactionTimeout", 0, staleTransactionTime);
         this.staleTransactionTime = staleTransactionTime;
         this.ext = Assert.checkNotNullParam("ext", ext);
-        this.xt = Assert.checkNotNullParam("xt", xt);
         this.tm = Assert.checkNotNullParam("tm", tm);
-        this.tsr = Assert.checkNotNullParam("tsr", tsr);
     }
 
+    /**
+     * Create a builder for the transaction provider.
+     *
+     * @return the builder
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -109,21 +104,14 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
     @NotNull
     public Transaction createNewTransaction(final int timeout) throws SystemException, SecurityException {
         final TransactionManager tm = this.tm;
-        final int oldTimeout;
-        if (tm instanceof TransactionTimeoutConfiguration) {
-            oldTimeout = ((TransactionTimeoutConfiguration) tm).getTransactionTimeout();
-        } else if (tm instanceof TransactionManagerImple) {
-            oldTimeout = ((TransactionManagerImple) tm).getTimeout();
-        } else {
-            oldTimeout = 0;
-        }
+        final int oldTimeout = getTransactionManagerTimeout();
         tm.setTransactionTimeout(timeout);
         try {
             final Transaction suspended = tm.suspend();
             try {
                 tm.begin();
                 final Transaction transaction = tm.suspend();
-                SimpleXid gtid = SimpleXid.of(((TransactionImple) transaction).getTxId()).withoutBranch();
+                SimpleXid gtid = SimpleXid.of(getXid(transaction)).withoutBranch();
                 known.put(gtid, getEntryFor(transaction, gtid));
                 // Narayana doesn't actually throw exceptions here so this should be fine
                 tm.setTransactionTimeout(oldTimeout);
@@ -151,64 +139,16 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
     }
 
+    abstract int getTransactionManagerTimeout() throws SystemException;
+
     public boolean isImported(@NotNull final Transaction transaction) throws IllegalArgumentException {
         return transaction instanceof ImportedTransaction;
     }
 
-    private static final MethodHandle registerSynchronizationImple;
-
-    static {
-        registerSynchronizationImple = doPrivileged((PrivilegedAction<MethodHandle>) () -> {
-            try {
-                final Method declaredMethod = TransactionImple.class.getDeclaredMethod("registerSynchronizationImple", SynchronizationImple.class);
-                declaredMethod.setAccessible(true);
-                final MethodHandles.Lookup lookup = MethodHandles.lookup();
-                return lookup.unreflect(declaredMethod);
-            } catch (Throwable t) {
-                throw Log.log.unexpectedFailure(t);
-            }
-        });
-    }
-
-    public void registerInterposedSynchronization(@NotNull final Transaction transaction, @NotNull final Synchronization sync) throws IllegalArgumentException {
-        // this is silly but for some reason they've locked this API up tight
-        try {
-            registerSynchronizationImple.invoke((TransactionImple) transaction, new SynchronizationImple(sync, true));
-        } catch (RuntimeException | Error e) {
-            throw e;
-        } catch (Throwable t) {
-            throw Log.log.unexpectedFailure(t);
-        }
-    }
-
-    public Object getResource(@NotNull final Transaction transaction, @NotNull final Object key) {
-        return ((TransactionImple) transaction).getTxLocalResource(key);
-    }
-
-    public void putResource(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
-        ((TransactionImple) transaction).putTxLocalResource(key, value);
-    }
-
-    public boolean getRollbackOnly(@NotNull final Transaction transaction) throws IllegalArgumentException {
-        try {
-            return transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK;
-        } catch (SystemException e) {
-            throw Log.log.unexpectedFailure(e);
-        }
-    }
+    public abstract void registerInterposedSynchronization(@NotNull Transaction transaction, @NotNull Synchronization sync) throws IllegalArgumentException;
 
     @NotNull
-    public Object getKey(@NotNull final Transaction transaction) throws IllegalArgumentException {
-        return ((TransactionImple) transaction).get_uid();
-    }
-
-    public void commitLocal(@NotNull final Transaction transaction) throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
-        getEntryFor(transaction, SimpleXid.of(getXid(transaction)).withoutBranch()).commitLocal();
-    }
-
-    public void rollbackLocal(@NotNull final Transaction transaction) throws IllegalStateException, SystemException {
-        getEntryFor(transaction, SimpleXid.of(getXid(transaction)).withoutBranch()).rollbackLocal();
-    }
+    public abstract Object getKey(@NotNull Transaction transaction) throws IllegalArgumentException;
 
     public void dropLocal(@NotNull final Transaction transaction) {
         final Xid xid = getXid(transaction);
@@ -219,14 +159,10 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
     }
 
-    public int getTimeout(@NotNull final Transaction transaction) {
-        return ((TransactionImple) transaction).getTimeout();
-    }
+    public abstract int getTimeout(@NotNull Transaction transaction);
 
     @NotNull
-    public Xid getXid(@NotNull final Transaction transaction) {
-        return ((TransactionImple) transaction).getTxId();
-    }
+    public abstract Xid getXid(@NotNull Transaction transaction);
 
     @NotNull
     public String getNodeName() {
@@ -267,7 +203,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
                 final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
                 final Iterator<XidKey> iterator = timeoutSet.headSet(new XidKey(SimpleXid.EMPTY, timeTick)).iterator();
                 while (iterator.hasNext()) {
-                    known.remove(iterator.next().gtid);
+                    known.remove(iterator.next().getId());
                     iterator.remove();
                 }
             }
@@ -303,10 +239,6 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         return providerInterfaceType.isInstance(transaction) ? providerInterfaceType.cast(transaction) : null;
     }
 
-    public String toString() {
-        return "JBoss transaction provider";
-    }
-
     static final int BIT_BEFORE_COMP = 1 << 0;
     static final int BIT_PREPARE_OR_ROLLBACK = 1 << 1;
     static final int BIT_COMMIT_OR_FORGET = 1 << 2;
@@ -323,6 +255,10 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         public int compareTo(final XidKey o) {
             final int res = signum(expiration - o.expiration);
             return res == 0 ? gtid.compareTo(o.gtid) : res;
+        }
+
+        SimpleXid getId() {
+            return gtid;
         }
     }
 
@@ -549,15 +485,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
         }
 
         private XAException initializeSuppressed(final XAException ex, final ImportedTransaction transaction) {
-            try {
-                if (transaction instanceof AtomicAction) {
-                    for (Throwable t : ((AtomicAction) transaction).getDeferredThrowables()) {
-                        ex.addSuppressed(t);
-                    }
-                }
-            } catch (NoClassDefFoundError ignored) {
-                // skip attaching the deferred throwables
-            }
+            // TODO API does not yet exist for this
             return ex;
         }
     }
@@ -726,6 +654,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
          *
          * @return the XA terminator
          */
+        @Deprecated
         public XATerminator getXATerminator() {
             return xaTerminator;
         }
@@ -735,6 +664,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
          *
          * @param xt the XA terminator (must not be {@code null})
          */
+        @Deprecated
         public Builder setXATerminator(final XATerminator xt) {
             Assert.checkNotNullParam("xt", xt);
             this.xaTerminator = xt;
@@ -766,6 +696,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
          *
          * @return the transaction synchronization registry
          */
+        @Deprecated
         public TransactionSynchronizationRegistry getTransactionSynchronizationRegistry() {
             return transactionSynchronizationRegistry;
         }
@@ -775,6 +706,7 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
          *
          * @param tsr the transaction synchronization registry
          */
+        @Deprecated
         public Builder setTransactionSynchronizationRegistry(final TransactionSynchronizationRegistry tsr) {
             Assert.checkNotNullParam("tsr", tsr);
             this.transactionSynchronizationRegistry = tsr;
@@ -788,26 +720,21 @@ public final class JBossLocalTransactionProvider implements LocalTransactionProv
          * @throws IllegalArgumentException if a required property is {@code null}
          */
         public JBossLocalTransactionProvider build() {
+            ExtendedJBossXATerminator extendedJBossXATerminator = this.extendedJBossXATerminator;
+            TransactionManager transactionManager = this.transactionManager;
+            int staleTransactionTime = this.staleTransactionTime;
             Assert.checkNotNullParam("extendedJBossXATerminator", extendedJBossXATerminator);
-            Assert.checkNotNullParam("xaTerminator", xaTerminator);
             Assert.checkNotNullParam("transactionManager", transactionManager);
-            Assert.checkNotNullParam("transactionSynchronizationRegistry", transactionSynchronizationRegistry);
-            return new JBossLocalTransactionProvider(staleTransactionTime, xaTerminator, extendedJBossXATerminator, transactionManager, transactionSynchronizationRegistry);
+            Assert.checkMinimumParameter("staleTransactionTime", 0, staleTransactionTime);
+            if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple
+             || transactionManager instanceof com.arjuna.ats.jbossatx.jta.TransactionManagerDelegate) {
+                return new JBossJTALocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator, transactionManager);
+            } else if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.jts.TransactionManagerImple
+             || transactionManager instanceof com.arjuna.ats.jbossatx.jts.TransactionManagerDelegate) {
+                return new JBossJTSLocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator, transactionManager);
+            } else {
+                throw Log.log.unknownTransactionManagerType(transactionManager.getClass());
+            }
         }
     }
-
-    // Prepare result codes; see com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome for more info
-    private static final int PREPARE_OK = 0;
-    private static final int PREPARE_NOTOK = 1;
-    private static final int PREPARE_READONLY = 2;
-    private static final int HEURISTIC_ROLLBACK = 3;
-    private static final int HEURISTIC_COMMIT = 4;
-    private static final int HEURISTIC_MIXED = 5;
-    private static final int HEURISTIC_HAZARD = 6;
-    private static final int FINISH_OK = 7;
-    private static final int FINISH_ERROR = 8;
-    private static final int NOT_PREPARED = 9;
-    private static final int ONE_PHASE_ERROR = 10;
-    private static final int INVALID_TRANSACTION = 11;
-    private static final int PREPARE_ONE_PHASE_COMMITTED = 12;
 }
