@@ -58,7 +58,7 @@ public final class ContextTransactionManager implements TransactionManager {
             if (state.transaction == null) {
                 throw Log.log.noTransaction();
             }
-            state.transaction.commit();
+            state.transaction.commitAndDissociate();
         } finally {
             state.transaction = null;
         }
@@ -70,7 +70,7 @@ public final class ContextTransactionManager implements TransactionManager {
             if (state.transaction == null) {
                 throw Log.log.noTransaction();
             }
-            state.transaction.rollback();
+            state.transaction.rollbackAndDissociate();
         } finally {
             state.transaction = null;
         }

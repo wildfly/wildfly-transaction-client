@@ -42,7 +42,6 @@ public final class LocalTransaction extends AbstractTransaction {
     private final Transaction transaction;
 
     LocalTransaction(final LocalTransactionContext owner, final Transaction transaction) {
-        super();
         this.owner = owner;
         this.transaction = transaction;
     }
@@ -51,14 +50,23 @@ public final class LocalTransaction extends AbstractTransaction {
         if (isImported()) {
             throw Log.log.commitOnImported();
         }
-        // ensure we're not associated with the transaction
         try {
-            final TransactionManager transactionManager = owner.getProvider().getTransactionManager();
-            if (transaction.equals(transactionManager.getTransaction())) {
-                transactionManager.commit();
-            } else {
-                owner.getProvider().commitLocal(transaction);
+            owner.getProvider().commitLocal(transaction);
+        } finally {
+            final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
+            if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
+                // we can drop the mapping, since we are both a master and have no enlisted subordinates
+                owner.getProvider().dropLocal(transaction);
             }
+        }
+    }
+
+    void commitAndDissociate() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
+        if (isImported()) {
+            throw Log.log.commitOnImported();
+        }
+        try {
+            owner.getProvider().getTransactionManager().commit();
         } finally {
             final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
@@ -72,14 +80,23 @@ public final class LocalTransaction extends AbstractTransaction {
         if (isImported()) {
             throw Log.log.rollbackOnImported();
         }
-        // ensure we're not associated with the transaction
         try {
-            final TransactionManager transactionManager = owner.getProvider().getTransactionManager();
-            if (transaction.equals(transactionManager.getTransaction())) {
-                transactionManager.rollback();
-            } else {
-                owner.getProvider().rollbackLocal(transaction);
+            owner.getProvider().rollbackLocal(transaction);
+        } finally {
+            final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
+            if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
+                // we can drop the mapping, since we are both a master and have no enlisted subordinates
+                owner.getProvider().dropLocal(transaction);
             }
+        }
+    }
+
+    void rollbackAndDissociate() throws IllegalStateException, SystemException {
+        if (isImported()) {
+            throw Log.log.rollbackOnImported();
+        }
+        try {
+            owner.getProvider().getTransactionManager().rollback();
         } finally {
             final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {

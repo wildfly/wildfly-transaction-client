@@ -99,8 +99,24 @@ public final class RemoteTransaction extends AbstractTransaction {
         stateRef.get().commit();
     }
 
+    void commitAndDissociate() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
+        try {
+            commit();
+        } finally {
+            suspend();
+        }
+    }
+
     public void rollback() throws IllegalStateException, SystemException {
         stateRef.get().rollback();
+    }
+
+    void rollbackAndDissociate() throws IllegalStateException, SystemException {
+        try {
+            rollback();
+        } finally {
+            suspend();
+        }
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {

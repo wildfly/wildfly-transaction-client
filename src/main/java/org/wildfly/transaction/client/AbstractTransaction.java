@@ -24,6 +24,9 @@ import static java.lang.Math.min;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import javax.transaction.HeuristicMixedException;
+import javax.transaction.HeuristicRollbackException;
+import javax.transaction.RollbackException;
 import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
@@ -133,6 +136,14 @@ public abstract class AbstractTransaction implements Transaction {
 
         associationListeners.add(associationListener);
     }
+
+    public abstract void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException;
+
+    abstract void commitAndDissociate() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException;
+
+    public abstract void rollback() throws IllegalStateException, SystemException;
+
+    abstract void rollbackAndDissociate() throws IllegalStateException, SystemException;
 
     interface SysExTry extends AutoCloseable {
         void close() throws SystemException;
