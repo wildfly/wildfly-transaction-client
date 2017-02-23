@@ -104,7 +104,8 @@ final class TransactionClientChannel implements RemotingOperations {
                 }
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
-                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int len = StreamUtils.readPackedSignedInt32(is);
+                    int error = is.readInt();
                     final XAException xa = Log.log.protocolErrorXA(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -115,6 +116,7 @@ final class TransactionClientChannel implements RemotingOperations {
                         throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    int len = StreamUtils.readPackedSignedInt32(is);
                     final SecurityException sx = Log.log.peerSecurityException();
                     sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -160,7 +162,8 @@ final class TransactionClientChannel implements RemotingOperations {
                 }
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
-                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int len = StreamUtils.readPackedSignedInt32(is);
+                    int error = is.readInt();
                     final XAException xa = Log.log.protocolErrorXA(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -171,6 +174,7 @@ final class TransactionClientChannel implements RemotingOperations {
                         throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    int len = StreamUtils.readPackedSignedInt32(is);
                     final SecurityException sx = Log.log.peerSecurityException();
                     sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -215,7 +219,8 @@ final class TransactionClientChannel implements RemotingOperations {
                 }
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
-                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int len = StreamUtils.readPackedSignedInt32(is);
+                    int error = is.readInt();
                     final XAException xa = Log.log.protocolErrorXA(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -226,6 +231,7 @@ final class TransactionClientChannel implements RemotingOperations {
                         throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    int len = StreamUtils.readPackedSignedInt32(is);
                     final SecurityException sx = Log.log.peerSecurityException();
                     sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -271,7 +277,8 @@ final class TransactionClientChannel implements RemotingOperations {
                 }
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
-                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int len = StreamUtils.readPackedSignedInt32(is);
+                    int error = is.readInt();
                     final XAException xa = Log.log.protocolErrorXA(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -282,6 +289,7 @@ final class TransactionClientChannel implements RemotingOperations {
                         throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    int len = StreamUtils.readPackedSignedInt32(is);
                     final SecurityException sx = Log.log.peerSecurityException();
                     sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -329,7 +337,8 @@ final class TransactionClientChannel implements RemotingOperations {
                 }
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
-                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int len = StreamUtils.readPackedSignedInt32(is);
+                    int error = is.readInt();
                     final XAException xa = Log.log.protocolErrorXA(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -340,6 +349,7 @@ final class TransactionClientChannel implements RemotingOperations {
                         throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    int len = StreamUtils.readPackedSignedInt32(is);
                     final SecurityException sx = Log.log.peerSecurityException();
                     sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -385,7 +395,8 @@ final class TransactionClientChannel implements RemotingOperations {
                 }
                 int id = is.read();
                 if (id == Protocol.P_XA_ERROR) {
-                    int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                    int len = StreamUtils.readPackedSignedInt32(is);
+                    int error = is.readInt();
                     final XAException xa = Log.log.protocolErrorXA(error);
                     xa.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -396,6 +407,7 @@ final class TransactionClientChannel implements RemotingOperations {
                         throw xa;
                     }
                 } else if (id == Protocol.P_SEC_EXC) {
+                    int len = StreamUtils.readPackedSignedInt32(is);
                     final SecurityException sx = Log.log.peerSecurityException();
                     sx.initCause(RemoteExceptionCause.readFromStream(is));
                     if ((id = is.read()) != -1) {
@@ -448,7 +460,8 @@ final class TransactionClientChannel implements RemotingOperations {
                     if (id == Protocol.P_XID) {
                         recoveryList.add(Protocol.readXid(is, StreamUtils.readPackedUnsignedInt32(is)));
                     } else if (id == Protocol.P_XA_ERROR) {
-                        int error = Protocol.readIntParam(is, StreamUtils.readPackedSignedInt32(is));
+                        int len = StreamUtils.readPackedSignedInt32(is);
+                        int error = is.readInt();
                         final XAException xa = Log.log.protocolErrorXA(error);
                         xa.initCause(RemoteExceptionCause.readFromStream(is));
                         if ((id = is.read()) != -1) {
@@ -459,6 +472,7 @@ final class TransactionClientChannel implements RemotingOperations {
                             throw xa;
                         }
                     } else if (id == Protocol.P_SEC_EXC) {
+                        int len = StreamUtils.readPackedSignedInt32(is);
                         final SecurityException sx = Log.log.peerSecurityException();
                         sx.initCause(RemoteExceptionCause.readFromStream(is));
                         if ((id = is.read()) != -1) {

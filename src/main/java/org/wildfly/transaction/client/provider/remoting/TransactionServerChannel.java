@@ -404,10 +404,10 @@ final class TransactionServerChannel {
             } catch (SystemException e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
+                writeExceptionResponse(M_RESP_XA_RB_ONLY, i, xae);
                 return;
             } catch (XAException e) {
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
+                writeExceptionResponse(M_RESP_XA_RB_ONLY, i, e);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -456,10 +456,10 @@ final class TransactionServerChannel {
             } catch (SystemException e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
+                writeExceptionResponse(M_RESP_XA_BEFORE, i, xae);
                 return;
             } catch (XAException e) {
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
+                writeExceptionResponse(M_RESP_XA_BEFORE, i, e);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -513,15 +513,15 @@ final class TransactionServerChannel {
             } catch (SystemException e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
+                writeExceptionResponse(M_RESP_XA_PREPARE, i, xae);
                 return;
             } catch (XAException e) {
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
+                writeExceptionResponse(M_RESP_XA_PREPARE, i, e);
                 return;
             } catch (Exception e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
+                writeExceptionResponse(M_RESP_XA_PREPARE, i, xae);
                 return;
             }
         }, xid.withoutBranch(), invId);
@@ -570,15 +570,15 @@ final class TransactionServerChannel {
             } catch (SystemException e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
+                writeExceptionResponse(M_RESP_XA_FORGET, i, xae);
                 return;
             } catch (XAException e) {
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
+                writeExceptionResponse(M_RESP_XA_FORGET, i, e);
                 return;
             } catch (Exception e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, i, xae);
+                writeExceptionResponse(M_RESP_XA_FORGET, i, xae);
                 return;
             }
         }, xid, invId);
@@ -633,15 +633,15 @@ final class TransactionServerChannel {
             } catch (SystemException e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, xae);
+                writeExceptionResponse(M_RESP_XA_COMMIT, invId, xae);
                 return;
             } catch (XAException e) {
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
+                writeExceptionResponse(M_RESP_XA_COMMIT, invId, e);
                 return;
             } catch (Exception e) {
                 final XAException xae = new XAException(XAException.XAER_RMERR);
                 xae.initCause(e);
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, xae);
+                writeExceptionResponse(M_RESP_XA_COMMIT, invId, xae);
                 return;
             }
         }, Boolean.valueOf(onePhase), xid.withoutBranch());
@@ -685,7 +685,7 @@ final class TransactionServerChannel {
                 // get the first batch
                 xids = recoverable.recover(XAResource.TMSTARTRSCAN, finalParentName);
             } catch (XAException e) {
-                writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
+                writeExceptionResponse(M_RESP_XA_RECOVER, invId, e);
                 return;
             }
             try (final MessageOutputStream outputStream = messageTracker.openMessageUninterruptibly()) {
@@ -710,10 +710,10 @@ final class TransactionServerChannel {
                     } catch (XAException e) {
                         try {
                             recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
-                            writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
+                            writeExceptionResponse(M_RESP_XA_RECOVER, invId, e);
                         } catch (XAException e1) {
                             e1.addSuppressed(e);
-                            writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e1);
+                            writeExceptionResponse(M_RESP_XA_RECOVER, invId, e1);
                         }
                         return;
                     }
@@ -723,10 +723,10 @@ final class TransactionServerChannel {
                 } catch (XAException e) {
                     try {
                         recoverable.recover(XAResource.TMENDRSCAN, finalParentName);
-                        writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e);
+                        writeExceptionResponse(M_RESP_XA_RECOVER, invId, e);
                     } catch (XAException e1) {
                         e1.addSuppressed(e);
-                        writeExceptionResponse(M_RESP_XA_ROLLBACK, invId, e1);
+                        writeExceptionResponse(M_RESP_XA_RECOVER, invId, e1);
                     }
                     return;
                 }
