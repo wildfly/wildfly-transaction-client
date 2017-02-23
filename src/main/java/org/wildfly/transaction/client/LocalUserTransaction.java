@@ -27,6 +27,9 @@ import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.UserTransaction;
 
+import org.wildfly.transaction.TransactionPermission;
+import org.wildfly.transaction.client._private.Log;
+
 /**
  * A {@code UserTransaction} instance that controls the transaction state of the current local provider.
  *
@@ -41,27 +44,46 @@ public final class LocalUserTransaction implements UserTransaction, Serializable
     }
 
     public void begin() throws NotSupportedException, SystemException {
+        checkTransactionStateAvailability();
         ContextTransactionManager.getInstance().begin();
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
+        checkTransactionStateAvailability();
         ContextTransactionManager.getInstance().commit();
     }
 
     public void rollback() throws IllegalStateException, SecurityException, SystemException {
+        checkTransactionStateAvailability();
         ContextTransactionManager.getInstance().rollback();
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
+        checkTransactionStateAvailability();
         ContextTransactionManager.getInstance().setRollbackOnly();
     }
 
     public int getStatus() throws SystemException {
+        checkTransactionStateAvailability();
         return ContextTransactionManager.getInstance().getStatus();
     }
 
     public void setTransactionTimeout(final int seconds) throws SystemException {
+        checkTransactionStateAvailability();
         ContextTransactionManager.getInstance().setTransactionTimeout(seconds);
+    }
+
+    public void setAvailability(boolean available) {
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(TransactionPermission.forName("modifyUserTransactionAvailability"));
+        }
+
+        ContextTransactionManager.getInstance().setAvailable(available);
+    }
+
+    public boolean isAvailable() {
+        return ContextTransactionManager.getInstance().isAvailable();
     }
 
     Object readResolve() {
@@ -79,5 +101,15 @@ public final class LocalUserTransaction implements UserTransaction, Serializable
      */
     public static LocalUserTransaction getInstance() {
         return instance;
+    }
+
+    /**
+     * UserTransaction is could not be available within particular scopes
+     * e.g. for CDI @Transactional and a TxType other than NOT_SUPPORTED or NEVER
+     */
+    private void checkTransactionStateAvailability() {
+        if(!isAvailable()) {
+            throw Log.log.forbiddenContextForUserTransaction();
+        }
     }
 }
