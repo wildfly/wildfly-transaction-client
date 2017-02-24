@@ -358,7 +358,7 @@ final class TransactionServerChannel {
                 writeExceptionResponse(M_RESP_XA_ROLLBACK, i, e);
                 return;
             }
-        }, xid.withoutBranch(), invId);
+        }, xid, invId);
     }
 
     void handleXaTxnRollbackOnly(final MessageInputStream message, final int invId) throws IOException {
@@ -404,7 +404,7 @@ final class TransactionServerChannel {
                 writeExceptionResponse(M_RESP_XA_RB_ONLY, i, e);
                 return;
             }
-        }, xid.withoutBranch(), invId);
+        }, xid, invId);
     }
 
     void handleXaTxnBefore(final MessageInputStream message, final int invId) throws IOException {
@@ -456,7 +456,7 @@ final class TransactionServerChannel {
                 writeExceptionResponse(M_RESP_XA_BEFORE, i, e);
                 return;
             }
-        }, xid.withoutBranch(), invId);
+        }, xid, invId);
     }
 
     void handleXaTxnPrepare(final MessageInputStream message, final int invId) throws IOException {
@@ -513,7 +513,7 @@ final class TransactionServerChannel {
                 writeExceptionResponse(M_RESP_XA_PREPARE, i, xae);
                 return;
             }
-        }, xid.withoutBranch(), invId);
+        }, xid, invId);
     }
 
     void handleXaTxnForget(final MessageInputStream message, final int invId) throws IOException {
@@ -552,7 +552,11 @@ final class TransactionServerChannel {
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
-                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
+                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
+                if (importResult == null) {
+                    writeExceptionResponse(M_RESP_XA_FORGET, i, new XAException(XAException.XAER_NOTA));
+                    return;
+                }
                 // run operation while associated
                 importResult.getControl().forget();
                 writeSimpleResponse(M_RESP_XA_FORGET, i);
@@ -610,9 +614,14 @@ final class TransactionServerChannel {
         }
         securityIdentity.runAsConsumer((o, x) -> {
             try {
-                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
+                final boolean onePhaseCopy = o.booleanValue();
+                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, ! onePhaseCopy);
+                if (importResult == null) {
+                    writeExceptionResponse(M_RESP_XA_COMMIT, invId, new XAException(XAException.XAER_NOTA));
+                    return;
+                }
                 // run operation while associated
-                importResult.getControl().commit(o.booleanValue());
+                importResult.getControl().commit(onePhaseCopy);
                 writeSimpleResponse(M_RESP_XA_COMMIT, invId);
             } catch (XAException e) {
                 writeExceptionResponse(M_RESP_XA_COMMIT, invId, e);
@@ -623,7 +632,7 @@ final class TransactionServerChannel {
                 writeExceptionResponse(M_RESP_XA_COMMIT, invId, xae);
                 return;
             }
-        }, Boolean.valueOf(onePhase), xid.withoutBranch());
+        }, Boolean.valueOf(onePhase), xid);
     }
 
     void handleXaTxnRecover(final MessageInputStream message, final int invId) throws IOException {
@@ -677,10 +686,10 @@ final class TransactionServerChannel {
                 do {
                     added = false;
                     for (final Xid xid : xids) {
-                        SimpleXid simpleXid = SimpleXid.of(xid).withoutBranch();
-                        if (seen.add(simpleXid)) {
+                        SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+                        if (seen.add(gtid)) {
                             added = true;
-                            writeParam(P_XID, outputStream, simpleXid);
+                            writeParam(P_XID, outputStream, xid);
                         }
                     }
                     if (added) try {
@@ -710,8 +719,8 @@ final class TransactionServerChannel {
                     return;
                 }
                 for (final Xid xid : xids) {
-                    SimpleXid simpleXid = SimpleXid.of(xid).withoutBranch();
-                    if (seen.add(simpleXid)) {
+                    SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+                    if (seen.add(gtid)) {
                         writeParam(P_XID, outputStream, xid);
                     }
                 }
