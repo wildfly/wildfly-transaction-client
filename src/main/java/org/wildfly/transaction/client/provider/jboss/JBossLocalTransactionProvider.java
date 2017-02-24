@@ -38,6 +38,7 @@ import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
 import javax.transaction.NotSupportedException;
 import javax.transaction.RollbackException;
+import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
@@ -312,6 +313,15 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
 
         public void rollback() throws XAException {
             final Transaction transaction = this.transaction;
+            try {
+                final int status = transaction.getStatus();
+                if (status == Status.STATUS_ROLLING_BACK || status == Status.STATUS_ROLLEDBACK) {
+                    // no harm here
+                    return;
+                }
+            } catch (SystemException e) {
+                // can't determine status; fall out
+            }
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
@@ -341,18 +351,28 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
 
         public void end(final int flags) throws XAException {
+            if (flags != XAResource.TMFAIL) {
+                return;
+            }
             final Transaction transaction = this.transaction;
+            try {
+                final int status = transaction.getStatus();
+                if (status == Status.STATUS_MARKED_ROLLBACK || status == Status.STATUS_ROLLING_BACK || status == Status.STATUS_ROLLEDBACK) {
+                    // no harm here
+                    return;
+                }
+            } catch (SystemException e) {
+                // can't determine status; fall out
+            }
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
-            if (flags == XAResource.TMFAIL) {
-                if (false /* JBTM-2846 */) try {
-                    transaction.setRollbackOnly();
-                } catch (IllegalStateException e) {
-                    throw Log.log.illegalStateXa(XAException.XAER_NOTA, e);
-                } catch (Throwable /* RuntimeException | SystemException */ e) {
-                    throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
-                }
+            try {
+                transaction.setRollbackOnly();
+            } catch (IllegalStateException e) {
+                throw Log.log.illegalStateXa(XAException.XAER_NOTA, e);
+            } catch (Throwable /* RuntimeException | SystemException */ e) {
+                throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
             }
         }
 
