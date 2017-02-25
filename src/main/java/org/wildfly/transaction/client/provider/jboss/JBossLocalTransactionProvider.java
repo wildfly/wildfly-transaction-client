@@ -192,24 +192,57 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             putResource(transaction, ENTRY_KEY, entry = new Entry(gtid, transaction, xidKey));
         }
         timeoutSet.add(xidKey);
-        registerInterposedSynchronization(transaction, new Synchronization() {
-            public void beforeCompletion() {
-                // no operation
-            }
+        if (! isStatusInactive(transaction)) {
+            try {
+                registerInterposedSynchronization(transaction, new Synchronization() {
+                    public void beforeCompletion() {
+                        // no operation
+                    }
 
-            public void afterCompletion(final int status) {
-                // let the TM do some heavy lifting for us
-                final long timeTick = getTimeTick();
-                // clear off all expired entries
-                final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
-                final Iterator<XidKey> iterator = timeoutSet.headSet(new XidKey(SimpleXid.EMPTY, timeTick)).iterator();
-                while (iterator.hasNext()) {
-                    known.remove(iterator.next().getId());
-                    iterator.remove();
+                    public void afterCompletion(final int status) {
+                        // let the TM do some heavy lifting for us
+                        final long timeTick = getTimeTick();
+                        // clear off all expired entries
+                        final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
+                        final Iterator<XidKey> iterator = timeoutSet.headSet(new XidKey(SimpleXid.EMPTY, timeTick)).iterator();
+                        while (iterator.hasNext()) {
+                            known.remove(iterator.next().getId());
+                            iterator.remove();
+                        }
+                    }
+                });
+            } catch (IllegalStateException e) {
+                if (! isStatusInactive(transaction)) {
+                    // we don't know why it happened because the tx is not inactive; could be unknown or something weird
+                    throw e;
                 }
             }
-        });
+        }
         return entry;
+    }
+
+    boolean isStatusInactive(Transaction transaction) {
+        switch (getStatus(transaction)) {
+            case Status.STATUS_PREPARING:
+            case Status.STATUS_PREPARED:
+            case Status.STATUS_COMMITTING:
+            case Status.STATUS_COMMITTED:
+            case Status.STATUS_ROLLING_BACK:
+            case Status.STATUS_ROLLEDBACK: {
+                return true;
+            }
+            default: {
+                return false;
+            }
+        }
+    }
+
+    int getStatus(Transaction transaction) {
+        try {
+            return transaction.getStatus();
+        } catch (SystemException e) {
+            return Status.STATUS_UNKNOWN;
+        }
     }
 
     private static final long TIME_START = System.nanoTime();

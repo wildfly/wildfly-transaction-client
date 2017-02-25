@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import javax.transaction.RollbackException;
+import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
@@ -60,31 +61,40 @@ final class XAOutflowedResources {
             }
             enlistedSubordinates ++;
             final SubordinateXAResource finalXaResource = xaResource;
-            transaction.registerSynchronization(new Synchronization() {
-                public void beforeCompletion() {
-                    try {
-                        if (finalXaResource.commitToEnlistment()) {
-                            finalXaResource.beforeCompletion(finalXaResource.getXid());
-                        } else {
-                            // try and delist, so the TM can maybe perform a 1PC; if it fails that's OK
-                            try {
-                                transaction.delistResource(finalXaResource, XAResource.TMSUCCESS);
-                                synchronized (this) {
-                                    enlistedSubordinates --;
+            int status = transaction.getStatus();
+            if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) try {
+                transaction.registerSynchronization(new Synchronization() {
+                    public void beforeCompletion() {
+                        try {
+                            if (finalXaResource.commitToEnlistment()) {
+                                finalXaResource.beforeCompletion(finalXaResource.getXid());
+                            } else {
+                                // try and delist, so the TM can maybe perform a 1PC; if it fails that's OK
+                                try {
+                                    transaction.delistResource(finalXaResource, XAResource.TMSUCCESS);
+                                    synchronized (this) {
+                                        enlistedSubordinates--;
+                                    }
+                                } catch (SystemException ignored) {
+                                    // optimization failed!
                                 }
-                            } catch (SystemException ignored) {
-                                // optimization failed!
                             }
+                        } catch (XAException e) {
+                            throw new SynchronizationException(e);
                         }
-                    } catch (XAException e) {
-                        throw new SynchronizationException(e);
                     }
-                }
 
-                public void afterCompletion(final int status) {
-                    // ignored
+                    public void afterCompletion(final int status) {
+                        // ignored
+                    }
+                });
+            } catch (IllegalStateException e) {
+                status = transaction.getStatus();
+                if (status == Status.STATUS_ACTIVE || status == Status.STATUS_MARKED_ROLLBACK) {
+                    throw e;
                 }
-            });
+                // else we don't care
+            }
             enlistments.put(key, xaResource);
             return xaResource;
         }
