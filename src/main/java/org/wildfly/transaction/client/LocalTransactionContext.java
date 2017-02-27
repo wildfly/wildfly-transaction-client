@@ -26,7 +26,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 import javax.resource.spi.XATerminator;
-import javax.transaction.NotSupportedException;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.xa.XAException;
@@ -232,18 +231,20 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      *
      * @return {@code true} if the transaction was associated, {@code false} if the provider had no current transaction
      * @throws SystemException if an error occurred acquiring the current transaction from the provider
-     * @throws NotSupportedException if the thread is already associated with a transaction
+     * @throws IllegalStateException if the thread is associated with a transaction that isn't equal to the provider's transaction
      */
-    public boolean importProviderTransaction() throws SystemException, NotSupportedException {
+    public boolean importProviderTransaction() throws SystemException {
         final ContextTransactionManager.State state = ContextTransactionManager.INSTANCE.getStateRef().get();
-        if (state.transaction != null) {
-            throw Log.log.nestedNotSupported();
-        }
         final Transaction transaction = provider.getTransactionManager().getTransaction();
         if (transaction == null) {
             return false;
         }
-        state.transaction = getOrAttach(transaction);
+        final LocalTransaction localTransaction = getOrAttach(transaction);
+        if (state.transaction == null) {
+            state.transaction = localTransaction;
+        } else {
+            localTransaction.verifyAssociation();
+        }
         return true;
     }
 
