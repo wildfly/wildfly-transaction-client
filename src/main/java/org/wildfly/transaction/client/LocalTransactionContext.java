@@ -212,11 +212,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
             }
             return null;
         }
-        final ImportResult<LocalTransaction> finalResult = result.withTransaction(getOrAttach(result.getTransaction()));
-        if (finalResult.isNew()) {
-            notifyCreationListeners(finalResult.getTransaction());
-        }
-        return finalResult;
+        return result.withTransaction(getOrAttach(result.getTransaction()));
     }
 
     /**
