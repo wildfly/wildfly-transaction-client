@@ -38,7 +38,8 @@ public final class TransactionPermission extends AbstractNameSetOnlyPermission<T
         "suspendRequests",
         "resumeRequests",
         "modifyUserTransactionAvailability",
-        "getXATerminator"
+        "getXATerminator",
+        "setGlobalDefaultTransactionTimeout"
     );
 
     static final StringMapping<TransactionPermission> mapping = new StringMapping<>(NAMES, TransactionPermission::new);

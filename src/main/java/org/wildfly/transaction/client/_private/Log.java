@@ -347,4 +347,7 @@ public interface Log extends BasicLogger {
 
     @Message(id = 88, value = "User %s does not have permission %s")
     SecurityException noPermission(String user, Permission permission);
+
+    @Message(id = 89, value = "Failed to configure transaction timeout of %d")
+    SystemException setTimeoutFailed(int timeout, @Cause XAException e);
 }

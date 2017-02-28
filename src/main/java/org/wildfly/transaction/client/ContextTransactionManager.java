@@ -18,6 +18,8 @@
 
 package org.wildfly.transaction.client;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
@@ -29,6 +31,7 @@ import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 
 import org.wildfly.common.Assert;
+import org.wildfly.transaction.TransactionPermission;
 import org.wildfly.transaction.client._private.Log;
 
 /**
@@ -38,6 +41,9 @@ import org.wildfly.transaction.client._private.Log;
  */
 public final class ContextTransactionManager implements TransactionManager {
     static final ContextTransactionManager INSTANCE = new ContextTransactionManager();
+
+    private static final AtomicInteger defaultTimeoutRef = new AtomicInteger(LocalTransactionContext.DEFAULT_TXN_TIMEOUT);
+    private static final TransactionPermission SET_TIMEOUT_PERMISSION = TransactionPermission.forName("setGlobalDefaultTransactionTimeout");
 
     final ThreadLocal<State> stateRef = ThreadLocal.withInitial(State::new);
 
@@ -49,7 +55,7 @@ public final class ContextTransactionManager implements TransactionManager {
         if (state.transaction != null) {
             throw Log.log.nestedNotSupported();
         }
-        resume(LocalTransactionContext.getCurrent().beginTransaction(state.timeout));
+        resume(LocalTransactionContext.getCurrent().beginTransaction(state.getTimeout()));
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
@@ -97,7 +103,7 @@ public final class ContextTransactionManager implements TransactionManager {
 
     public void setTransactionTimeout(final int timeout) {
         Assert.checkMinimumParameter("timeout", 0, timeout);
-        stateRef.get().timeout = timeout;
+        stateRef.get().setTimeout(timeout);
     }
 
     public AbstractTransaction suspend() throws SystemException {
@@ -150,13 +156,92 @@ public final class ContextTransactionManager implements TransactionManager {
         return INSTANCE;
     }
 
+    /**
+     * Get the global default transaction timeout.
+     *
+     * @return the global default transaction timeout in seconds (>= 1)
+     */
+    public static int getGlobalDefaultTransactionTimeout() {
+        return defaultTimeoutRef.get();
+    }
+
+    /**
+     * Set the global default transaction timeout, returning the original value.
+     *
+     * @param newTimeout the new timeout value in seconds (must be >= 1)
+     * @return the previous timeout in seconds (>= 1)
+     */
+    public static int setGlobalDefaultTransactionTimeout(int newTimeout) {
+        Assert.checkMinimumParameter("newTimeout", 1, newTimeout);
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(SET_TIMEOUT_PERMISSION);
+        }
+        return defaultTimeoutRef.getAndSet(newTimeout);
+    }
+
+    /**
+     * Set the minimum global default transaction timeout, returning the original value.  The new timeout will not be
+     * less than the given minimum.
+     *
+     * @param minimumTimeout the minimum timeout value in seconds (must be >= 1)
+     * @return the previous timeout in seconds (>= 1)
+     */
+    public static int setMinimumGlobalDefaultTransactionTimeout(int minimumTimeout) {
+        Assert.checkMinimumParameter("minimumTimeout", 1, minimumTimeout);
+        int oldVal = defaultTimeoutRef.get();
+        if (oldVal >= minimumTimeout) {
+            return oldVal;
+        }
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(SET_TIMEOUT_PERMISSION);
+        }
+        while (! defaultTimeoutRef.compareAndSet(oldVal, minimumTimeout) && oldVal < minimumTimeout) {
+            oldVal = defaultTimeoutRef.get();
+        }
+        return oldVal;
+    }
+
+    /**
+     * Set the maximum global default transaction timeout, returning the original value.  The new timeout will not be
+     * greater than the given maximum.
+     *
+     * @param maximumTimeout the maximum timeout value in seconds (must be >= 1)
+     * @return the previous timeout in seconds (>= 1)
+     */
+    public static int setMaximumGlobalDefaultTransactionTimeout(int maximumTimeout) {
+        Assert.checkMinimumParameter("maximumTimeout", 1, maximumTimeout);
+        int oldVal = defaultTimeoutRef.get();
+        if (oldVal <= maximumTimeout) {
+            return oldVal;
+        }
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(SET_TIMEOUT_PERMISSION);
+        }
+        while (! defaultTimeoutRef.compareAndSet(oldVal, maximumTimeout) && oldVal > maximumTimeout) {
+            oldVal = defaultTimeoutRef.get();
+        }
+        return oldVal;
+    }
+
     ThreadLocal<State> getStateRef() {
         return stateRef;
     }
 
     static final class State {
         AbstractTransaction transaction;
-        int timeout = LocalTransactionContext.DEFAULT_TXN_TIMEOUT;
+        private int timeout = 0;
         boolean available = true;
+
+        int getTimeout() {
+            final int timeout = this.timeout;
+            return timeout == 0 ? defaultTimeoutRef.get() : timeout;
+        }
+
+        void setTimeout(int timeout) {
+            this.timeout = timeout;
+        }
     }
 }

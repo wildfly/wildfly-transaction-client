@@ -59,7 +59,7 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
             throw Log.log.noProviderForUri(location);
         }
         final int timeout = stateRef.get().timeout;
-        final SimpleTransactionControl control = provider.getPeerHandle(location).begin(timeout);
+        final SimpleTransactionControl control = provider.getPeerHandle(location).begin(timeout == 0 ? ContextTransactionManager.getGlobalDefaultTransactionTimeout() : timeout);
         transactionManager.resume(context.notifyCreationListeners(new RemoteTransaction(control, location, timeout)));
     }
 
@@ -121,7 +121,12 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
 
     public void setTransactionTimeout(final int seconds) throws SystemException {
         if (seconds < 0) throw Log.log.negativeTxnTimeout();
-        stateRef.get().timeout = seconds == 0 ? LocalTransactionContext.DEFAULT_TXN_TIMEOUT : seconds;
+        stateRef.get().timeout = seconds;
+    }
+
+    public int getTransactionTimeout() {
+        final int timeout = stateRef.get().timeout;
+        return timeout == 0 ? ContextTransactionManager.getGlobalDefaultTransactionTimeout() : timeout;
     }
 
     Object writeReplace() {
@@ -129,6 +134,6 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
     }
 
     static final class State {
-        int timeout = LocalTransactionContext.DEFAULT_TXN_TIMEOUT;
+        int timeout = 0;
     }
 }
