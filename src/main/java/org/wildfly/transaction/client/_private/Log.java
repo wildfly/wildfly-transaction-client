@@ -20,6 +20,7 @@ package org.wildfly.transaction.client._private;
 
 import java.io.IOException;
 import java.net.URI;
+import java.security.Permission;
 import java.util.ServiceConfigurationError;
 
 import javax.transaction.HeuristicCommitException;
@@ -343,4 +344,7 @@ public interface Log extends BasicLogger {
 
     @Message(id = 87, value = "Unknown transaction manager type %s")
     IllegalArgumentException unknownTransactionManagerType(Class<?> actualType);
+
+    @Message(id = 88, value = "User %s does not have permission %s")
+    SecurityException noPermission(String user, Permission permission);
 }
