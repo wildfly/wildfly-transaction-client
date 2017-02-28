@@ -22,14 +22,13 @@ import static org.jboss.remoting3.util.StreamUtils.writeInt8;
 import static org.jboss.remoting3.util.StreamUtils.writePackedUnsignedInt31;
 import static org.wildfly.transaction.client._private.Log.log;
 import static org.wildfly.transaction.client.provider.remoting.Protocol.*;
-import static org.wildfly.transaction.client.provider.remoting.RemotingTransactionServer.*;
+import static org.wildfly.transaction.client.provider.remoting.RemotingTransactionServer.LocalTxn;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.RollbackException;
@@ -50,6 +49,7 @@ import org.wildfly.security.auth.server.SecurityIdentity;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
+import org.wildfly.transaction.client.RemoteTransactionPermission;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XARecoverable;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
@@ -213,11 +213,9 @@ final class TransactionServerChannel {
             writeSimpleResponse(M_RESP_UT_ROLLBACK, invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAs(() -> {
             final LocalTransaction transaction = txn.getTransaction();
@@ -274,11 +272,9 @@ final class TransactionServerChannel {
             writeSimpleResponse(M_RESP_UT_COMMIT, invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAs(() -> {
             final LocalTransaction transaction = txn.getTransaction();
@@ -337,11 +333,9 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
@@ -389,11 +383,9 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
@@ -435,11 +427,9 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
@@ -487,11 +477,9 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
@@ -544,11 +532,9 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
@@ -606,11 +592,9 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         securityIdentity.runAsConsumer((o, x) -> {
             try {
@@ -659,11 +643,9 @@ final class TransactionServerChannel {
                 }
             }
         }
-        SecurityIdentity securityIdentity;
-        if (hasSecContext) {
-            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
-        } else {
-            securityIdentity = channel.getConnection().getLocalIdentity();
+        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        if (securityIdentity == null) {
+            return;
         }
         final String finalParentName = parentName;
         securityIdentity.runAs(() -> {
@@ -734,6 +716,20 @@ final class TransactionServerChannel {
                 }
             }
         });
+    }
+
+    private SecurityIdentity getSecurityIdentity(int invId, int secContext, boolean hasSecContext) {
+        SecurityIdentity securityIdentity;
+        if (hasSecContext) {
+            securityIdentity = channel.getConnection().getLocalIdentity(secContext);
+        } else {
+            securityIdentity = channel.getConnection().getLocalIdentity();
+        }
+        if(!securityIdentity.implies(RemoteTransactionPermission.getInstance())) {
+            writeExceptionResponse(M_RESP_ERROR, invId, Protocol.P_SEC_EXC, log.noPermission(securityIdentity.getPrincipal().getName(), RemoteTransactionPermission.getInstance()));
+            return null;
+        }
+        return securityIdentity;
     }
 
     ///////////////////////////////////////////////////////////////
