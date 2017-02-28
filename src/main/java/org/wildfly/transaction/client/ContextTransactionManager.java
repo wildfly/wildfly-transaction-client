@@ -156,7 +156,7 @@ public final class ContextTransactionManager implements TransactionManager {
 
     static final class State {
         AbstractTransaction transaction;
-        int timeout = 43200;
+        int timeout = LocalTransactionContext.DEFAULT_TXN_TIMEOUT;
         boolean available = true;
     }
 }

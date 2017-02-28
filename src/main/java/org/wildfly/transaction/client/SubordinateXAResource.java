@@ -44,11 +44,9 @@ import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 final class SubordinateXAResource implements XAResource, XARecoverable, Serializable {
     private static final long serialVersionUID = 444691792601946632L;
 
-    private static final int DEFAULT_TIMEOUT = 43200; // 12 hours
-
     private final URI location;
     private final String parentName;
-    private volatile int timeout = DEFAULT_TIMEOUT;
+    private volatile int timeout = LocalTransactionContext.DEFAULT_TXN_TIMEOUT;
     private long startTime = 0L;
     private volatile Xid xid;
     private int capturedTimeout;
@@ -181,7 +179,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
         if (seconds < 0) {
             throw Log.log.negativeTxnTimeoutXa(XAException.XAER_INVAL);
         }
-        timeout = seconds == 0 ? DEFAULT_TIMEOUT : seconds;
+        timeout = seconds == 0 ? LocalTransactionContext.DEFAULT_TXN_TIMEOUT : seconds;
         return true;
     }
 

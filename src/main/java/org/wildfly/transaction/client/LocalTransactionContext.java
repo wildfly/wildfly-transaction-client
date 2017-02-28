@@ -45,6 +45,12 @@ import org.wildfly.transaction.client.spi.LocalTransactionProvider;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public final class LocalTransactionContext implements Contextual<LocalTransactionContext> {
+
+    /**
+     * The default transaction timeout (5 minutes).
+     */
+    public static final int DEFAULT_TXN_TIMEOUT = 300;
+
     private static final ContextManager<LocalTransactionContext> CONTEXT_MANAGER = new ContextManager<LocalTransactionContext>(LocalTransactionContext.class, "org.wildfly.transaction.client.context.local");
     private static final Supplier<LocalTransactionContext> PRIVILEGED_SUPPLIER = doPrivileged((PrivilegedAction<Supplier<LocalTransactionContext>>) CONTEXT_MANAGER::getPrivilegedSupplier);
 

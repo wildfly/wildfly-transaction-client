@@ -40,7 +40,6 @@ import org.wildfly.transaction.client.spi.SimpleTransactionControl;
  */
 public final class RemoteUserTransaction implements UserTransaction, Serializable {
     private static final long serialVersionUID = 8612109476723652825L;
-    private static final int DEFAULT_TIMEOUT = 43200;
 
     private final ThreadLocal<State> stateRef = ThreadLocal.withInitial(State::new);
     private final URI location;
@@ -122,7 +121,7 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
 
     public void setTransactionTimeout(final int seconds) throws SystemException {
         if (seconds < 0) throw Log.log.negativeTxnTimeout();
-        stateRef.get().timeout = seconds == 0 ? DEFAULT_TIMEOUT : seconds;
+        stateRef.get().timeout = seconds == 0 ? LocalTransactionContext.DEFAULT_TXN_TIMEOUT : seconds;
     }
 
     Object writeReplace() {
@@ -130,6 +129,6 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
     }
 
     static final class State {
-        int timeout = DEFAULT_TIMEOUT;
+        int timeout = LocalTransactionContext.DEFAULT_TXN_TIMEOUT;
     }
 }
