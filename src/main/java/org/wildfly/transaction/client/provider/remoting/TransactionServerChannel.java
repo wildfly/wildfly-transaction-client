@@ -213,7 +213,7 @@ final class TransactionServerChannel {
             writeSimpleResponse(M_RESP_UT_ROLLBACK, invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_UT_ROLLBACK, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -272,7 +272,7 @@ final class TransactionServerChannel {
             writeSimpleResponse(M_RESP_UT_COMMIT, invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_UT_COMMIT, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -333,7 +333,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_ROLLBACK, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -383,7 +383,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_RB_ONLY, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -427,7 +427,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_BEFORE, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -477,7 +477,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_PREPARE, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -532,7 +532,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_FORGET, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -592,7 +592,7 @@ final class TransactionServerChannel {
             writeParamError(invId);
             return;
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_COMMIT, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -643,7 +643,7 @@ final class TransactionServerChannel {
                 }
             }
         }
-        SecurityIdentity securityIdentity = getSecurityIdentity(invId, secContext, hasSecContext);
+        SecurityIdentity securityIdentity = getSecurityIdentity(M_RESP_XA_RECOVER, invId, secContext, hasSecContext);
         if (securityIdentity == null) {
             return;
         }
@@ -718,7 +718,7 @@ final class TransactionServerChannel {
         });
     }
 
-    private SecurityIdentity getSecurityIdentity(int invId, int secContext, boolean hasSecContext) {
+    private SecurityIdentity getSecurityIdentity(int msgId, int invId, int secContext, boolean hasSecContext) {
         SecurityIdentity securityIdentity;
         if (hasSecContext) {
             securityIdentity = channel.getConnection().getLocalIdentity(secContext);
@@ -726,7 +726,7 @@ final class TransactionServerChannel {
             securityIdentity = channel.getConnection().getLocalIdentity();
         }
         if(!securityIdentity.implies(RemoteTransactionPermission.getInstance())) {
-            writeExceptionResponse(M_RESP_ERROR, invId, Protocol.P_SEC_EXC, log.noPermission(securityIdentity.getPrincipal().getName(), RemoteTransactionPermission.getInstance()));
+            writeExceptionResponse(msgId, invId, P_SEC_EXC, log.noPermission(securityIdentity.getPrincipal().getName(), RemoteTransactionPermission.getInstance()));
             return null;
         }
         return securityIdentity;
