@@ -168,16 +168,16 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      * Begin a new, local transaction on behalf of a local or remote peer.
      *
      * @param timeout the transaction timeout to use for this transaction
-     * @param remote {@code true} if the peer is remote, {@code false} if the peer is local
+     * @param failOnSuspend {@code true} to fail if the server is suspended, {@code false} to begin the transaction even if the server is suspended
      * @return the local transaction (not {@code null})
      * @throws SystemException if the transaction creation failed for some reason, one of the possible reasons being
      *                         suspended server
      * @throws SecurityException if the caller is not authorized to create a local transaction in this context
      */
     @NotNull
-    public LocalTransaction beginTransaction(final int timeout, final boolean remote) throws SystemException, SecurityException {
+    public LocalTransaction beginTransaction(final int timeout, final boolean failOnSuspend) throws SystemException, SecurityException {
         Assert.checkMinimumParameter("timeout", 0, timeout);
-        if (remote && requestsSuspended) {
+        if (failOnSuspend && requestsSuspended) {
             throw Log.log.suspendedCannotCreateNew();
         }
         final Transaction newTransaction = provider.createNewTransaction(timeout);
