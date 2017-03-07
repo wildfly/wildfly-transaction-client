@@ -106,6 +106,10 @@ public final class ContextTransactionManager implements TransactionManager {
         stateRef.get().setTimeout(timeout);
     }
 
+    public int getTransactionTimeout() {
+        return stateRef.get().getTimeout();
+    }
+
     public AbstractTransaction suspend() throws SystemException {
         final State state = stateRef.get();
         AbstractTransaction transaction = state.transaction;
