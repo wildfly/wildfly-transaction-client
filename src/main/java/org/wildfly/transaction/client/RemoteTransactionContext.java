@@ -88,10 +88,10 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
         this(providers, true);
     }
 
-    RemoteTransaction notifyCreationListeners(RemoteTransaction transaction) {
+    RemoteTransaction notifyCreationListeners(RemoteTransaction transaction, CreationListener.CreatedBy createdBy) {
         for (CreationListener creationListener : creationListeners) {
             try {
-                creationListener.transactionCreated(transaction);
+                creationListener.transactionCreated(transaction, createdBy);
             } catch (Throwable t) {
                 Log.log.trace("Transaction creation listener throws an exception", t);
             }

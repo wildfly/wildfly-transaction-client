@@ -115,10 +115,10 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         return PRIVILEGED_SUPPLIER.get();
     }
 
-    private LocalTransaction notifyCreationListeners(LocalTransaction transaction) {
+    private LocalTransaction notifyCreationListeners(LocalTransaction transaction, CreationListener.CreatedBy createdBy) {
         for (CreationListener creationListener : creationListeners) {
             try {
-                creationListener.transactionCreated(transaction);
+                creationListener.transactionCreated(transaction, createdBy);
             } catch (Throwable t) {
                 Log.log.trace("Transaction creation listener throws an exception", t);
             }
@@ -185,7 +185,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (newTransaction == null) {
             throw Log.log.providerCreatedNullTransaction();
         }
-        return notifyCreationListeners(new LocalTransaction(this, newTransaction));
+        return notifyCreationListeners(new LocalTransaction(this, newTransaction), CreationListener.CreatedBy.TRANSACTION_MANAGER);
     }
 
     /**
@@ -212,7 +212,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
             }
             return null;
         }
-        return result.withTransaction(getOrAttach(result.getTransaction()));
+        return result.withTransaction(getOrAttach(result.getTransaction(), result.isNew() ? CreationListener.CreatedBy.IMPORT : CreationListener.CreatedBy.MERGE));
     }
 
     /**
@@ -241,7 +241,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (transaction == null) {
             return false;
         }
-        final LocalTransaction localTransaction = getOrAttach(transaction);
+        final LocalTransaction localTransaction = getOrAttach(transaction, CreationListener.CreatedBy.MERGE);
         if (state.transaction == null) {
             state.transaction = localTransaction;
         } else {
@@ -250,7 +250,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         return true;
     }
 
-    LocalTransaction getOrAttach(Transaction transaction) {
+    LocalTransaction getOrAttach(Transaction transaction, CreationListener.CreatedBy createdBy) {
         LocalTransaction txn = (LocalTransaction) provider.getResource(transaction, LOCAL_TXN_KEY);
         boolean isNew = false;
         if (txn == null) {
@@ -264,7 +264,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
             }
         }
         if (isNew) {
-            notifyCreationListeners(txn);
+            notifyCreationListeners(txn, createdBy);
         }
         return txn;
     }

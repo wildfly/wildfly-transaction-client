@@ -60,7 +60,7 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
         }
         final int timeout = stateRef.get().timeout;
         final SimpleTransactionControl control = provider.getPeerHandle(location).begin(timeout == 0 ? ContextTransactionManager.getGlobalDefaultTransactionTimeout() : timeout);
-        transactionManager.resume(context.notifyCreationListeners(new RemoteTransaction(control, location, timeout)));
+        transactionManager.resume(context.notifyCreationListeners(new RemoteTransaction(control, location, timeout), CreationListener.CreatedBy.USER_TRANSACTION));
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
