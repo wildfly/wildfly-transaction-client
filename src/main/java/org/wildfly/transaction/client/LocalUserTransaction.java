@@ -45,7 +45,7 @@ public final class LocalUserTransaction implements UserTransaction, Serializable
 
     public void begin() throws NotSupportedException, SystemException {
         checkTransactionStateAvailability();
-        ContextTransactionManager.getInstance().begin();
+        ContextTransactionManager.getInstance().begin(CreationListener.CreatedBy.USER_TRANSACTION);
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {

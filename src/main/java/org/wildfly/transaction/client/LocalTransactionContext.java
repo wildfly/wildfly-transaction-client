@@ -176,6 +176,11 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
      */
     @NotNull
     public LocalTransaction beginTransaction(final int timeout, final boolean failOnSuspend) throws SystemException, SecurityException {
+        return beginTransaction(timeout, failOnSuspend, CreationListener.CreatedBy.TRANSACTION_MANAGER);
+    }
+
+    @NotNull
+    LocalTransaction beginTransaction(final int timeout, final boolean failOnSuspend, CreationListener.CreatedBy createdBy) throws SystemException, SecurityException {
         Assert.checkMinimumParameter("timeout", 0, timeout);
         if (failOnSuspend && requestsSuspended) {
             throw Log.log.suspendedCannotCreateNew();
@@ -185,7 +190,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (newTransaction == null) {
             throw Log.log.providerCreatedNullTransaction();
         }
-        return notifyCreationListeners(new LocalTransaction(this, newTransaction), CreationListener.CreatedBy.TRANSACTION_MANAGER);
+        return notifyCreationListeners(new LocalTransaction(this, newTransaction), createdBy);
     }
 
     /**

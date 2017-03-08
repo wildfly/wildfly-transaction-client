@@ -51,11 +51,15 @@ public final class ContextTransactionManager implements TransactionManager {
     }
 
     public void begin() throws NotSupportedException, SystemException {
+        begin(CreationListener.CreatedBy.TRANSACTION_MANAGER);
+    }
+
+    void begin(CreationListener.CreatedBy createdBy) throws NotSupportedException, SystemException {
         final State state = stateRef.get();
         if (state.transaction != null) {
             throw Log.log.nestedNotSupported();
         }
-        resume(LocalTransactionContext.getCurrent().beginTransaction(state.getTimeout()));
+        resume(LocalTransactionContext.getCurrent().beginTransaction(state.getTimeout(), false, createdBy));
     }
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
