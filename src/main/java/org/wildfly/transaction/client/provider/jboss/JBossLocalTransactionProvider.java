@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.resource.spi.XATerminator;
 import javax.transaction.HeuristicCommitException;
@@ -273,10 +272,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         return providerInterfaceType.isInstance(transaction) ? providerInterfaceType.cast(transaction) : null;
     }
 
-    static final int BIT_BEFORE_COMP = 1 << 0;
-    static final int BIT_PREPARE_OR_ROLLBACK = 1 << 1;
-    static final int BIT_COMMIT_OR_FORGET = 1 << 2;
-
     static final class XidKey implements Comparable<XidKey> {
         private final SimpleXid gtid;
         private final long expiration;
@@ -299,7 +294,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
     final class Entry implements SubordinateTransactionControl {
         private final SimpleXid gtid;
         private final Transaction transaction;
-        private final AtomicInteger completionBits = new AtomicInteger(0);
         private final XidKey xidKey;
 
         Entry(final SimpleXid gtid, final Transaction transaction, final XidKey xidKey) {
@@ -320,13 +314,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (transaction instanceof ImportedTransaction) {
                 throw Log.log.rollbackOnImported();
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0) {
-                    throw Log.log.invalidTxnState();
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
             transaction.rollback();
         }
 
@@ -334,13 +321,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (transaction instanceof ImportedTransaction) {
                 throw Log.log.commitOnImported();
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0 || (oldVal & BIT_COMMIT_OR_FORGET) != 0) {
-                    throw Log.log.invalidTxnState();
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_COMMIT_OR_FORGET | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
             transaction.commit();
         }
 
@@ -358,13 +338,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0) {
-                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             if (importedTransaction.activated()) try {
                 importedTransaction.doRollback();
@@ -414,13 +387,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if ((oldVal & BIT_BEFORE_COMP) != 0) {
-                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_BEFORE_COMP));
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
                 if (! importedTransaction.doBeforeCompletion()) {
@@ -438,13 +404,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if ((oldVal & BIT_PREPARE_OR_ROLLBACK) != 0) {
-                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             final int tpo = importedTransaction.doPrepare();
             switch (tpo) {
@@ -484,13 +443,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if ((oldVal & BIT_COMMIT_OR_FORGET) != 0) {
-                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_COMMIT_OR_FORGET | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
                 importedTransaction.doForget();
@@ -506,13 +458,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (! (transaction instanceof ImportedTransaction)) {
                 throw Log.log.notImportedXa(XAException.XAER_NOTA);
             }
-            int oldVal;
-            do {
-                oldVal = completionBits.get();
-                if (onePhase && (oldVal & BIT_PREPARE_OR_ROLLBACK) != 0 || (oldVal & BIT_COMMIT_OR_FORGET) != 0) {
-                    throw Log.log.invalidTxStateXa(XAException.XAER_NOTA);
-                }
-            } while (! completionBits.compareAndSet(oldVal, oldVal | BIT_COMMIT_OR_FORGET | BIT_PREPARE_OR_ROLLBACK | BIT_BEFORE_COMP));
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
                 if (onePhase) {
