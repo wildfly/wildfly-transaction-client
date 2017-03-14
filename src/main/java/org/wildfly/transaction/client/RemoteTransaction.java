@@ -139,12 +139,12 @@ public final class RemoteTransaction extends AbstractTransaction {
 
     public void registerSynchronization(final Synchronization sync) throws RollbackException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("sync", sync);
-        stateRef.get().registerSynchronization(sync);
+        stateRef.get().registerSynchronization(new AssociatingSynchronization(sync));
     }
 
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {
         Assert.checkNotNullParam("sync", sync);
-        stateRef.get().registerInterposedSynchronization(sync);
+        stateRef.get().registerInterposedSynchronization(new AssociatingSynchronization(sync));
     }
 
     public int hashCode() {
