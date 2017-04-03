@@ -239,4 +239,28 @@ public abstract class AbstractTransaction implements Transaction {
     Object getOutflowLock() {
         return outflowLock;
     }
+
+    final class AssociatingSynchronization implements Synchronization {
+        private final Synchronization sync;
+
+        AssociatingSynchronization(final Synchronization sync) {
+            this.sync = sync;
+        }
+
+        public void beforeCompletion() {
+            try {
+                performConsumer(Synchronization::beforeCompletion, sync);
+            } catch (SystemException e) {
+                throw new SynchronizationException(e);
+            }
+        }
+
+        public void afterCompletion(final int status) {
+            try {
+                performConsumer(Synchronization::afterCompletion, sync, status);
+            } catch (SystemException e) {
+                throw new SynchronizationException(e);
+            }
+        }
+    }
 }

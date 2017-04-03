@@ -139,7 +139,7 @@ public final class LocalTransaction extends AbstractTransaction {
 
     public void registerSynchronization(final Synchronization sync) throws RollbackException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("sync", sync);
-        transaction.registerSynchronization(sync);
+        transaction.registerSynchronization(new AssociatingSynchronization(sync));
     }
 
     /**
@@ -162,7 +162,7 @@ public final class LocalTransaction extends AbstractTransaction {
 
     void registerInterposedSynchronization(final Synchronization sync) throws IllegalStateException {
         Assert.checkNotNullParam("sync", sync);
-        owner.getProvider().registerInterposedSynchronization(transaction, sync);
+        owner.getProvider().registerInterposedSynchronization(transaction, new AssociatingSynchronization(sync));
     }
 
     Object getResource(final Object key) throws NullPointerException {
