@@ -119,6 +119,13 @@ public final class RemoteTransaction extends AbstractTransaction {
         }
     }
 
+    boolean importBacking() {
+        return false;
+    }
+
+    void unimportBacking() {
+    }
+
     public void setRollbackOnly() throws IllegalStateException, SystemException {
         stateRef.get().setRollbackOnly();
     }

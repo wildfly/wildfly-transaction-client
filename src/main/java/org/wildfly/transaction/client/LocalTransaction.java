@@ -109,6 +109,28 @@ public final class LocalTransaction extends AbstractTransaction {
         }
     }
 
+    boolean importBacking() throws SystemException {
+        final ContextTransactionManager.State state = ContextTransactionManager.INSTANCE.getStateRef().get();
+        final Transaction transaction = owner.getProvider().getTransactionManager().getTransaction();
+        if (transaction == null) {
+            return false;
+        }
+        final LocalTransaction localTransaction = owner.getOrAttach(transaction, CreationListener.CreatedBy.MERGE);
+        if (state.transaction == null) {
+            state.transaction = localTransaction;
+        } else {
+            localTransaction.verifyAssociation();
+        }
+        return true;
+    }
+
+    void unimportBacking() {
+        final ContextTransactionManager.State state = ContextTransactionManager.INSTANCE.getStateRef().get();
+        if (state.transaction == this) {
+            state.transaction = null;
+        }
+    }
+
     public void setRollbackOnly() throws IllegalStateException, SystemException {
         transaction.setRollbackOnly();
     }

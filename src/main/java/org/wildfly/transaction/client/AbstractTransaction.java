@@ -240,6 +240,10 @@ public abstract class AbstractTransaction implements Transaction {
         return outflowLock;
     }
 
+    abstract boolean importBacking() throws SystemException;
+
+    abstract void unimportBacking();
+
     final class AssociatingSynchronization implements Synchronization {
         private final Synchronization sync;
 
@@ -249,7 +253,13 @@ public abstract class AbstractTransaction implements Transaction {
 
         public void beforeCompletion() {
             try {
-                performConsumer(Synchronization::beforeCompletion, sync);
+                if (importBacking()) try {
+                    sync.beforeCompletion();
+                } finally {
+                    unimportBacking();
+                } else {
+                    performConsumer(Synchronization::beforeCompletion, sync);
+                }
             } catch (SystemException e) {
                 throw new SynchronizationException(e);
             }
@@ -257,7 +267,13 @@ public abstract class AbstractTransaction implements Transaction {
 
         public void afterCompletion(final int status) {
             try {
-                performConsumer(Synchronization::afterCompletion, sync, status);
+                if (importBacking()) try {
+                    sync.afterCompletion(status);
+                } finally {
+                    unimportBacking();
+                } else {
+                    performConsumer(Synchronization::afterCompletion, sync, status);
+                }
             } catch (SystemException e) {
                 throw new SynchronizationException(e);
             }
