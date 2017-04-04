@@ -118,10 +118,11 @@ public final class LocalTransaction extends AbstractTransaction {
         final LocalTransaction localTransaction = owner.getOrAttach(transaction, CreationListener.CreatedBy.MERGE);
         if (state.transaction == null) {
             state.transaction = localTransaction;
+            return true;
         } else {
             localTransaction.verifyAssociation();
+            return false;
         }
-        return true;
     }
 
     void unimportBacking() {

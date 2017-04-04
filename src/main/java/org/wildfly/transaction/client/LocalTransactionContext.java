@@ -190,7 +190,7 @@ public final class LocalTransactionContext implements Contextual<LocalTransactio
         if (newTransaction == null) {
             throw Log.log.providerCreatedNullTransaction();
         }
-        return notifyCreationListeners(new LocalTransaction(this, newTransaction), createdBy);
+        return getOrAttach(newTransaction, createdBy);
     }
 
     /**

@@ -22,6 +22,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.transaction.HeuristicMixedException;
@@ -168,7 +169,7 @@ public abstract class AbstractTransaction implements Transaction {
 
     public <T, U, R, E extends Exception> R performFunction(ExceptionBiFunction<T, U, R, E> function, T param1, U param2) throws E, SystemException {
         final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        if (tm.getStateRef().get().transaction == this) {
+        if (Objects.equals(tm.getStateRef().get().transaction, this)) {
             return function.apply(param1, param2);
         }
         try (SysExTry ignored = whileSuspended()) {
@@ -188,7 +189,7 @@ public abstract class AbstractTransaction implements Transaction {
 
     public <T, E extends Exception> void performConsumer(ExceptionObjIntConsumer<T, E> consumer, T param1, int param2) throws E, SystemException {
         final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        if (tm.getStateRef().get().transaction == this) {
+        if (Objects.equals(tm.getStateRef().get().transaction, this)) {
             consumer.accept(param1, param2);
             return;
         }
@@ -201,7 +202,7 @@ public abstract class AbstractTransaction implements Transaction {
 
     public <T, U, E extends Exception> void performConsumer(ExceptionBiConsumer<T, U, E> consumer, T param1, U param2) throws E, SystemException {
         final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        if (tm.getStateRef().get().transaction == this) {
+        if (Objects.equals(tm.getStateRef().get().transaction, this)) {
             consumer.accept(param1, param2);
             return;
         }
@@ -218,7 +219,7 @@ public abstract class AbstractTransaction implements Transaction {
 
     public <T, U, E extends Exception> int performToIntFunction(ExceptionToIntBiFunction<T, U, E> function, T param1, U param2) throws E, SystemException {
         final ContextTransactionManager tm = ContextTransactionManager.INSTANCE;
-        if (tm.getStateRef().get().transaction == this) {
+        if (Objects.equals(tm.getStateRef().get().transaction, this)) {
             return function.apply(param1, param2);
         }
         try (SysExTry ignored = whileSuspended()) {
