@@ -483,7 +483,11 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
 
         private XAException initializeSuppressed(final XAException ex, final ImportedTransaction transaction) {
-            // TODO API does not yet exist for this
+            if(ex != null && transaction.supportsDeferredThrowables()) {
+                for(Throwable suppressedThrowable: transaction.getDeferredThrowables()) {
+                    ex.addSuppressed(suppressedThrowable);
+                }
+            }
             return ex;
         }
     }
