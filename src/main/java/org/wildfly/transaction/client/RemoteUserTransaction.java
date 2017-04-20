@@ -21,6 +21,7 @@ package org.wildfly.transaction.client;
 import java.io.Serializable;
 import java.net.URI;
 
+import javax.net.ssl.SSLContext;
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.NotSupportedException;
@@ -29,6 +30,7 @@ import javax.transaction.Status;
 import javax.transaction.SystemException;
 import javax.transaction.UserTransaction;
 
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
@@ -43,9 +45,13 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
 
     private final ThreadLocal<State> stateRef = ThreadLocal.withInitial(State::new);
     private final URI location;
+    private final AuthenticationConfiguration stickyAuthenticationConfiguration;
+    private final SSLContext stickySSLContext;
 
-    RemoteUserTransaction(final URI location) {
+    RemoteUserTransaction(final URI location, final SSLContext stickySSLContext, final AuthenticationConfiguration stickyAuthenticationConfiguration) {
         this.location = location;
+        this.stickyAuthenticationConfiguration = stickyAuthenticationConfiguration;
+        this.stickySSLContext = stickySSLContext;
     }
 
     public void begin() throws NotSupportedException, SystemException {
@@ -59,7 +65,7 @@ public final class RemoteUserTransaction implements UserTransaction, Serializabl
             throw Log.log.noProviderForUri(location);
         }
         final int timeout = stateRef.get().timeout;
-        final SimpleTransactionControl control = provider.getPeerHandle(location).begin(timeout == 0 ? ContextTransactionManager.getGlobalDefaultTransactionTimeout() : timeout);
+        final SimpleTransactionControl control = provider.getPeerHandle(location, stickySSLContext, stickyAuthenticationConfiguration).begin(timeout == 0 ? ContextTransactionManager.getGlobalDefaultTransactionTimeout() : timeout);
         transactionManager.resume(context.notifyCreationListeners(new RemoteTransaction(control, location, timeout), CreationListener.CreatedBy.USER_TRANSACTION));
     }
 

@@ -23,10 +23,12 @@ import java.util.Iterator;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
+import javax.net.ssl.SSLContext;
 import javax.transaction.SystemException;
 
 import org.jboss.remoting3.Endpoint;
 import org.kohsuke.MetaInfServices;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 
@@ -60,7 +62,7 @@ public final class RemotingRemoteTransactionProvider implements RemoteTransactio
         return Endpoint.getCurrent().isValidUriScheme(scheme);
     }
 
-    public RemoteTransactionPeer getPeerHandle(final URI location) throws SystemException {
-        return new RemotingRemoteTransactionPeer(location, Endpoint.getCurrent(), fallbackProvider);
+    public RemoteTransactionPeer getPeerHandle(final URI location, final SSLContext sslContext, final AuthenticationConfiguration authenticationConfiguration) throws SystemException {
+        return new RemotingRemoteTransactionPeer(location, sslContext, authenticationConfiguration, Endpoint.getCurrent(), fallbackProvider);
     }
 }

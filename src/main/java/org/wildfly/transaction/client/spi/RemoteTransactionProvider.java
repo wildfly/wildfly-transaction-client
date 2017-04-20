@@ -20,8 +20,11 @@ package org.wildfly.transaction.client.spi;
 
 import java.net.URI;
 
+import javax.net.ssl.SSLContext;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
+
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 
 /**
  * A remote transaction transport provider.
@@ -33,21 +36,25 @@ public interface RemoteTransactionProvider extends TransactionProvider {
      * Get a handle for a specific peer.
      *
      * @param location the peer location
+     * @param sslContext the sticky SSL context to use (may be {@code null})
+     * @param authenticationConfiguration the sticky authentication configuration to use (may be {@code null})
      * @return the handle, or {@code null} if this provider does not support this location
      * @throws SystemException if handle acquisition has failed
      */
-    RemoteTransactionPeer getPeerHandle(URI location) throws SystemException;
+    RemoteTransactionPeer getPeerHandle(URI location, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration) throws SystemException;
 
     /**
-     * Get a handle for a specific peer for an XA operation.  Identical to {@link #getPeerHandle(URI)} except
+     * Get a handle for a specific peer for an XA operation.  Identical to {@link #getPeerHandle(URI, SSLContext, AuthenticationConfiguration)} except
      * that an {@code XAException} is thrown in case of error instead of {@code SystemException}.
      *
      * @param location the peer location (not {@code null})
+     * @param sslContext the sticky SSL context to use (may be {@code null})
+     * @param authenticationConfiguration the sticky authentication configuration to use (may be {@code null})
      * @return the handle, or {@code null} if this provider does not support this location
      */
-    default RemoteTransactionPeer getPeerHandleForXa(URI location) throws XAException {
+    default RemoteTransactionPeer getPeerHandleForXa(URI location, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration) throws XAException {
         try {
-            return getPeerHandle(location);
+            return getPeerHandle(location, sslContext, authenticationConfiguration);
         } catch (SystemException e) {
             final XAException xaException = new XAException(e.getMessage());
             xaException.errorCode = XAException.XAER_RMFAIL;

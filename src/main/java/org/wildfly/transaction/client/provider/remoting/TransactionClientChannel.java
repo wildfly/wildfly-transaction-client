@@ -32,6 +32,7 @@ import javax.transaction.xa.Xid;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.ClientServiceHandle;
 import org.jboss.remoting3.Connection;
+import org.jboss.remoting3.ConnectionPeerIdentity;
 import org.jboss.remoting3.MessageInputStream;
 import org.jboss.remoting3.MessageOutputStream;
 import org.jboss.remoting3._private.IntIndexHashMap;
@@ -41,7 +42,6 @@ import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.common.rpc.RemoteExceptionCause;
-import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
@@ -73,7 +73,7 @@ final class TransactionClientChannel implements RemotingOperations {
     }
 
     @NotNull
-    public SimpleTransactionControl begin() throws SystemException {
+    public SimpleTransactionControl begin(final ConnectionPeerIdentity peerIdentity) throws SystemException {
         int id;
         final ThreadLocalRandom random = ThreadLocalRandom.current();
         final IntIndexMap<RemotingRemoteTransactionHandle> map = this.peerTransactionMap;
@@ -84,7 +84,7 @@ final class TransactionClientChannel implements RemotingOperations {
         return handle;
     }
 
-    public void rollback(final Xid xid) throws XAException {
+    public void rollback(final Xid xid, final ConnectionPeerIdentity peerIdentity) throws XAException {
         final InvocationTracker invocationTracker = getInvocationTracker();
         final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
         // write request
@@ -92,9 +92,9 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_ROLLBACK);
             Protocol.writeParam(Protocol.P_XID, os, xid);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -141,7 +141,7 @@ final class TransactionClientChannel implements RemotingOperations {
         }
     }
 
-    public void setRollbackOnly(final Xid xid) throws XAException {
+    public void setRollbackOnly(final Xid xid, final ConnectionPeerIdentity peerIdentity) throws XAException {
         // write rollback-only request
         final InvocationTracker invocationTracker = getInvocationTracker();
         final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
@@ -150,9 +150,9 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_RB_ONLY);
             Protocol.writeParam(Protocol.P_XID, os, xid);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -199,7 +199,7 @@ final class TransactionClientChannel implements RemotingOperations {
         }
     }
 
-    public void beforeCompletion(final Xid xid) throws XAException {
+    public void beforeCompletion(final Xid xid, final ConnectionPeerIdentity peerIdentity) throws XAException {
         final InvocationTracker invocationTracker = getInvocationTracker();
         final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
         // write request
@@ -207,9 +207,9 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_BEFORE);
             Protocol.writeParam(Protocol.P_XID, os, xid);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -256,7 +256,7 @@ final class TransactionClientChannel implements RemotingOperations {
         }
     }
 
-    public int prepare(final Xid xid) throws XAException {
+    public int prepare(final Xid xid, final ConnectionPeerIdentity peerIdentity) throws XAException {
         boolean readOnly = false;
         final InvocationTracker invocationTracker = getInvocationTracker();
         final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
@@ -265,9 +265,9 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_PREPARE);
             Protocol.writeParam(Protocol.P_XID, os, xid);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -317,7 +317,7 @@ final class TransactionClientChannel implements RemotingOperations {
         return readOnly ? XAResource.XA_RDONLY : XAResource.XA_OK;
     }
 
-    public void forget(final Xid xid) throws XAException {
+    public void forget(final Xid xid, final ConnectionPeerIdentity peerIdentity) throws XAException {
         final InvocationTracker invocationTracker = getInvocationTracker();
         final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
         // write request
@@ -325,9 +325,9 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_FORGET);
             Protocol.writeParam(Protocol.P_XID, os, xid);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -374,7 +374,7 @@ final class TransactionClientChannel implements RemotingOperations {
         }
     }
 
-    public void commit(final Xid xid, final boolean onePhase) throws XAException {
+    public void commit(final Xid xid, final boolean onePhase, final ConnectionPeerIdentity peerIdentity) throws XAException {
         final InvocationTracker invocationTracker = getInvocationTracker();
         final BlockingInvocation invocation = invocationTracker.addInvocation(BlockingInvocation::new);
         // write request
@@ -382,10 +382,10 @@ final class TransactionClientChannel implements RemotingOperations {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_COMMIT);
             Protocol.writeParam(Protocol.P_XID, os, xid);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
             if (onePhase) Protocol.writeParam(Protocol.P_ONE_PHASE, os);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -433,7 +433,7 @@ final class TransactionClientChannel implements RemotingOperations {
     }
 
     @NotNull
-    public Xid[] recover(final int flag, final String parentName) throws XAException {
+    public Xid[] recover(final int flag, final String parentName, final ConnectionPeerIdentity peerIdentity) throws XAException {
         if (flag != XAResource.TMSTARTRSCAN) {
             return SimpleXid.NO_XIDS;
         }
@@ -443,10 +443,10 @@ final class TransactionClientChannel implements RemotingOperations {
         try (MessageOutputStream os = invocationTracker.allocateMessage(invocation)) {
             os.writeShort(invocation.getIndex());
             os.writeByte(Protocol.M_XA_RECOVER);
-            final int peerIdentityId = channel.getConnection().getPeerIdentityId();
+            final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
             Protocol.writeParam(Protocol.P_PARENT_NAME, os, parentName);
-        } catch (IOException | AuthenticationException e) {
+        } catch (IOException e) {
             throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
         }
         final ArrayList<Xid> recoveryList = new ArrayList<>();

@@ -21,6 +21,8 @@ package org.wildfly.transaction.client;
 import java.io.Serializable;
 import java.net.URI;
 
+import org.wildfly.naming.client.NamingProvider;
+
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
@@ -34,6 +36,13 @@ final class SerializedUserTransaction implements Serializable {
     }
 
     Object readResolve() {
+        final NamingProvider currentNamingProvider = NamingProvider.getCurrentNamingProvider();
+        if (currentNamingProvider != null) {
+            final URI providerUri = currentNamingProvider.getProviderUri();
+            if (providerUri.equals(location)) {
+                return RemoteTransactionContext.getInstancePrivate().getUserTransaction(location, currentNamingProvider.getSSLContext(), currentNamingProvider.getAuthenticationConfiguration());
+            }
+        }
         return RemoteTransactionContext.getInstancePrivate().getUserTransaction(location);
     }
 }

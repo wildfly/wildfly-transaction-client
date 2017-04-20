@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
+import javax.net.ssl.SSLContext;
 import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.UserTransaction;
@@ -40,6 +41,7 @@ import javax.transaction.UserTransaction;
 import org.wildfly.common.Assert;
 import org.wildfly.common.context.ContextManager;
 import org.wildfly.common.context.Contextual;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.TransactionPermission;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
@@ -182,7 +184,21 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
      */
     public UserTransaction getUserTransaction(final URI location) {
         Assert.checkNotNullParam("location", location);
-        return userTransactions.computeIfAbsent(location, RemoteUserTransaction::new);
+        return userTransactions.computeIfAbsent(location, loc -> new RemoteUserTransaction(loc, null, null));
+    }
+
+    /**
+     * Get a {@code UserTransaction} that controls a remote transactions state at the given {@code location}.  The transaction
+     * context may cache these instances by location.
+     *
+     * @param location the location (must not be {@code null})
+     * @param stickySslContext the sticky SSL context to use, or {@code null} to use the dynamic configuration
+     * @param stickyAuthenticationConfiguration the sticky authentication configuration to use, or {@code null} to use the dynamic configuration
+     * @return the {@code UserTransaction} (not {@code null})
+     */
+    public UserTransaction getUserTransaction(final URI location, final SSLContext stickySslContext, final AuthenticationConfiguration stickyAuthenticationConfiguration) {
+        Assert.checkNotNullParam("location", location);
+        return userTransactions.computeIfAbsent(location, loc -> new RemoteUserTransaction(loc, stickySslContext, stickyAuthenticationConfiguration));
     }
 
     private static final Object outflowKey = new Object();

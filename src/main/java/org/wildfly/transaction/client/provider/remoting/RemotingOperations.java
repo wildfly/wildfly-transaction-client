@@ -22,25 +22,26 @@ import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
 
+import org.jboss.remoting3.ConnectionPeerIdentity;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public interface RemotingOperations {
-    void commit(Xid xid, boolean onePhase) throws XAException;
+    void commit(Xid xid, boolean onePhase, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    void forget(Xid xid) throws XAException;
+    void forget(Xid xid, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    int prepare(Xid xid) throws XAException;
+    int prepare(Xid xid, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    void rollback(Xid xid) throws XAException;
+    void rollback(Xid xid, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    void setRollbackOnly(Xid xid) throws XAException;
+    void setRollbackOnly(Xid xid, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    void beforeCompletion(Xid xid) throws XAException;
+    void beforeCompletion(Xid xid, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    Xid[] recover(int flag, String parentName) throws XAException;
+    Xid[] recover(int flag, String parentName, ConnectionPeerIdentity peerIdentity) throws XAException;
 
-    SimpleTransactionControl begin() throws SystemException;
+    SimpleTransactionControl begin(ConnectionPeerIdentity peerIdentity) throws SystemException;
 }

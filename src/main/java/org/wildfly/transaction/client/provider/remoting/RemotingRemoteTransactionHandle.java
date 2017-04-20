@@ -35,7 +35,6 @@ import org.jboss.remoting3.util.InvocationTracker;
 import org.jboss.remoting3.util.StreamUtils;
 import org.wildfly.common.Assert;
 import org.wildfly.common.rpc.RemoteExceptionCause;
-import org.wildfly.security.auth.AuthenticationException;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 
@@ -100,7 +99,7 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                     Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
                     final int peerIdentityId = channel.getConnection().getPeerIdentityId();
                     if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-                } catch (IOException | AuthenticationException e) {
+                } catch (IOException e) {
                     statusRef.set(Status.STATUS_UNKNOWN);
                     throw Log.log.failedToSend(e);
                 }
@@ -190,7 +189,7 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                     Protocol.writeParam(Protocol.P_TXN_CONTEXT, os, id, Protocol.UNSIGNED);
                     final int peerIdentityId = channel.getConnection().getPeerIdentityId();
                     if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
-                } catch (IOException | AuthenticationException e) {
+                } catch (IOException e) {
                     statusRef.set(Status.STATUS_UNKNOWN);
                     throw Log.log.failedToSend(e);
                 }

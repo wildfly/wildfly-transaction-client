@@ -22,10 +22,11 @@ import static java.security.AccessController.doPrivileged;
 
 import java.io.IOException;
 import java.net.URI;
-import java.security.PrivilegedAction;
+import java.security.GeneralSecurityException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.net.ssl.SSLContext;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
@@ -33,34 +34,69 @@ import javax.transaction.xa.Xid;
 
 import org.jboss.remoting3.Attachments;
 import org.jboss.remoting3.Connection;
+import org.jboss.remoting3.ConnectionPeerIdentity;
 import org.jboss.remoting3.Endpoint;
 import org.jboss.remoting3.ServiceNotFoundException;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
-import org.xnio.IoFuture;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     private static final Attachments.Key<RemotingOperations> key = new Attachments.Key<>(RemotingOperations.class);
+    private static final AuthenticationContextConfigurationClient CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
     private final URI location;
+    private final SSLContext sslContext;
+    private final AuthenticationConfiguration authenticationConfiguration;
     private final Endpoint endpoint;
     private final RemotingFallbackPeerProvider fallbackProvider;
     private final Set<Xid> rollbackOnlyXids = new ConcurrentHashMap<Xid, Boolean>().keySet(Boolean.TRUE);
 
-    RemotingRemoteTransactionPeer(final URI location, final Endpoint endpoint, final RemotingFallbackPeerProvider fallbackProvider) {
+    RemotingRemoteTransactionPeer(final URI location, final SSLContext sslContext, final AuthenticationConfiguration authenticationConfiguration, final Endpoint endpoint, final RemotingFallbackPeerProvider fallbackProvider) {
         this.location = location;
+        this.sslContext = sslContext;
+        this.authenticationConfiguration = authenticationConfiguration;
         this.endpoint = endpoint;
         this.fallbackProvider = fallbackProvider;
     }
 
+    ConnectionPeerIdentity getPeerIdentity() throws IOException {
+        SSLContext finalSslContext;
+        if (sslContext == null) {
+            try {
+                finalSslContext = CLIENT.getSSLContext(location, AuthenticationContext.captureCurrent(), "jta", "jboss");
+            } catch (GeneralSecurityException e) {
+                throw new IOException(e);
+            }
+        } else {
+            finalSslContext = sslContext;
+        }
+        AuthenticationConfiguration finalAuthenticationConfiguration;
+        if (authenticationConfiguration == null) {
+            finalAuthenticationConfiguration = CLIENT.getAuthenticationConfiguration(location, AuthenticationContext.captureCurrent(), -1, "jta", "jboss");
+        } else {
+            finalAuthenticationConfiguration = authenticationConfiguration;
+        }
+        return endpoint.getConnectedIdentity(location, finalSslContext, finalAuthenticationConfiguration).get();
+    }
+
+    ConnectionPeerIdentity getPeerIdentityXA() throws XAException {
+        try {
+            return getPeerIdentity();
+        } catch (IOException e) {
+            throw Log.log.failedToAcquireConnectionXA(e, XAException.XAER_RMERR);
+        }
+    }
+
     @NotNull
-    RemotingOperations getOperations() throws IOException {
-        final Connection connection = doPrivileged((PrivilegedAction<IoFuture<Connection>>) () -> endpoint.getConnection(location, "jta", "jboss")).get();
+    RemotingOperations getOperations(Connection connection) throws IOException {
         final Attachments attachments = connection.getAttachments();
         RemotingOperations operations = attachments.getAttachment(key);
         if (operations != null) {
@@ -96,9 +132,9 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
         return operations;
     }
 
-    RemotingOperations getOperationsXA() throws XAException {
+    RemotingOperations getOperationsXA(Connection connection) throws XAException {
         try {
-            return getOperations();
+            return getOperations(connection);
         } catch (IOException e) {
             throw Log.log.failedToAcquireConnectionXA(e, XAException.XAER_RMERR);
         }
@@ -109,7 +145,8 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
         return new SubordinateTransactionControl() {
             public void rollback() throws XAException {
                 try {
-                    getOperationsXA().rollback(xid);
+                    final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+                    getOperationsXA(peerIdentity.getConnection()).rollback(xid, peerIdentity);
                 } finally {
                     rollbackOnlyXids.remove(xid);
                 }
@@ -117,7 +154,8 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
 
             public void end(final int flags) throws XAException {
                 if (flags == XAResource.TMFAIL && rollbackOnlyXids.add(xid)) try {
-                    getOperationsXA().setRollbackOnly(xid);
+                    final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+                    getOperationsXA(peerIdentity.getConnection()).setRollbackOnly(xid, peerIdentity);
                 } catch (Throwable t) {
                     rollbackOnlyXids.remove(xid);
                     throw t;
@@ -125,12 +163,14 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
             }
 
             public void beforeCompletion() throws XAException {
-                getOperationsXA().beforeCompletion(xid);
+                final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+                getOperationsXA(peerIdentity.getConnection()).beforeCompletion(xid, peerIdentity);
             }
 
             public int prepare() throws XAException {
                 try {
-                    return getOperationsXA().prepare(xid);
+                    final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+                    return getOperationsXA(peerIdentity.getConnection()).prepare(xid, peerIdentity);
                 } finally {
                     rollbackOnlyXids.remove(xid);
                 }
@@ -138,7 +178,8 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
 
             public void forget() throws XAException {
                 try {
-                    getOperationsXA().forget(xid);
+                    final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+                    getOperationsXA(peerIdentity.getConnection()).forget(xid, peerIdentity);
                 } finally {
                     rollbackOnlyXids.remove(xid);
                 }
@@ -146,7 +187,8 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
 
             public void commit(final boolean onePhase) throws XAException {
                 try {
-                    getOperationsXA().commit(xid, onePhase);
+                    final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+                    getOperationsXA(peerIdentity.getConnection()).commit(xid, onePhase, peerIdentity);
                 } finally {
                     rollbackOnlyXids.remove(xid);
                 }
@@ -156,14 +198,16 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
 
     @NotNull
     public Xid[] recover(final int flag, final String parentName) throws XAException {
-        return getOperationsXA().recover(flag, parentName);
+        final ConnectionPeerIdentity peerIdentity = getPeerIdentityXA();
+        return getOperationsXA(peerIdentity.getConnection()).recover(flag, parentName, peerIdentity);
     }
 
     @NotNull
     public SimpleTransactionControl begin(final int timeout) throws SystemException {
         // this one is bound to the connection
         try {
-            return getOperations().begin();
+            final ConnectionPeerIdentity peerIdentity = getPeerIdentity();
+            return getOperations(peerIdentity.getConnection()).begin(peerIdentity);
         } catch (IOException e) {
             throw Log.log.failedToAcquireConnection(e);
         }

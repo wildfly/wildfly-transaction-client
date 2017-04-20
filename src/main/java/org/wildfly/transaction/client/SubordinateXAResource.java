@@ -152,7 +152,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     private SubordinateTransactionControl lookup(final Xid xid) throws XAException {
-        return getProvider().getPeerHandleForXa(location).lookupXid(xid);
+        return getProvider().getPeerHandleForXa(location, null, null).lookupXid(xid);
     }
 
     private RemoteTransactionProvider getProvider() {
@@ -164,7 +164,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     public Xid[] recover(final int flag, final String parentName) throws XAException {
-        return getProvider().getPeerHandleForXa(location).recover(flag, parentName);
+        return getProvider().getPeerHandleForXa(location, null, null).recover(flag, parentName);
     }
 
     public boolean isSameRM(final XAResource xaRes) throws XAException {
