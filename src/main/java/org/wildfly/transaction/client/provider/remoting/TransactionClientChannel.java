@@ -421,7 +421,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
-                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
