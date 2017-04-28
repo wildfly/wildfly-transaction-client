@@ -68,6 +68,7 @@ public final class LocalTransaction extends AbstractTransaction {
         if (isImported()) {
             throw Log.log.commitOnImported();
         }
+        notifyAssociationListeners(false);
         try {
             owner.getProvider().getTransactionManager().commit();
         } finally {
@@ -98,6 +99,7 @@ public final class LocalTransaction extends AbstractTransaction {
         if (isImported()) {
             throw Log.log.rollbackOnImported();
         }
+        notifyAssociationListeners(false);
         try {
             owner.getProvider().getTransactionManager().rollback();
         } finally {
