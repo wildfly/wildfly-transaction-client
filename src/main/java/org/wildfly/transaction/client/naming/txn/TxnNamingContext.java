@@ -123,7 +123,7 @@ class TxnNamingContext extends AbstractContext {
     }
 
     private UserTransaction getRemoteUserTransaction() {
-        return RemoteTransactionContext.getInstance().getUserTransaction(namingProvider.getProviderUri());
+        return RemoteTransactionContext.getInstance().getUserTransaction(namingProvider.getProviderUri(), namingProvider.getSSLContext(), namingProvider.getAuthenticationConfiguration());
     }
 
     @Override
