@@ -36,7 +36,7 @@ import org.jboss.remoting3.Attachments;
 import org.jboss.remoting3.Connection;
 import org.jboss.remoting3.ConnectionPeerIdentity;
 import org.jboss.remoting3.Endpoint;
-import org.jboss.remoting3.ServiceNotFoundException;
+import org.jboss.remoting3.ServiceOpenException;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
@@ -108,7 +108,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
             if (appearing != null) {
                 return appearing;
             }
-        } catch (ServiceNotFoundException e) {
+        } catch (ServiceOpenException e) {
             // try alternatives
             RemotingFallbackPeerProvider fallbackProvider = this.fallbackProvider;
             if (fallbackProvider == null) {
@@ -116,7 +116,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
             }
             try {
                 operations = fallbackProvider.getOperations(connection);
-            } catch (ServiceNotFoundException e1) {
+            } catch (ServiceOpenException e1) {
                 e1.addSuppressed(e);
                 throw e1;
             }
