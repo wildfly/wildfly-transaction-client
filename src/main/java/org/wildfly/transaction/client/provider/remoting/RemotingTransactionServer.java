@@ -83,6 +83,11 @@ public final class RemotingTransactionServer {
         return txn == null ? null : txn.getTransaction();
     }
 
+    public LocalTransaction removeTransaction(int id) {
+        LocalTxn txn = txns.removeKey(id);
+        return txn == null ? null : txn.getTransaction();
+    }
+
     void handleClosed(Connection connection, IOException ignored) {
         for (LocalTxn txn : txns) {
             safeRollback(txn.getTransaction());
