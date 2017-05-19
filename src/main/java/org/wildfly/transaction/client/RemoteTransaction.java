@@ -166,7 +166,12 @@ public final class RemoteTransaction extends AbstractTransaction {
         return String.format("Remote transaction \"%s\" (delegate=%s)", location, control);
     }
 
-    URI getLocation() {
+    /**
+     * Get the location of this remote transaction.
+     *
+     * @return the location of this remote transaction (not {@code null})
+     */
+    public URI getLocation() {
         return location;
     }
 
