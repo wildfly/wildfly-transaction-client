@@ -504,10 +504,16 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                     return new ImportResult<Transaction>(entry.getTransaction(), entry, false);
                 }
                 final boolean imported;
-                final Transaction transaction;
+                Transaction transaction;
                 if (doNotImport) {
                     imported = false;
                     transaction = ext.getTransaction(xid);
+
+                    if(transaction == null) {
+                        ext.doRecover(null, null);
+                        transaction = ext.getTransaction(xid);
+                    }
+
                     if (transaction == null) {
                         return null;
                     }
