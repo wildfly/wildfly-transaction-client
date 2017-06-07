@@ -467,6 +467,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                         throw new XAException(XAException.XA_RETRY);
                     }
                 }
+            } catch (XAException e) {
+                throw initializeSuppressed(e, importedTransaction);
             } catch (HeuristicMixedException e) {
                 throw initializeSuppressed(Log.log.heuristicMixedXa(XAException.XA_HEURMIX, e), importedTransaction);
             } catch (RollbackException e) {
