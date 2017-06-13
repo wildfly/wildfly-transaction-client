@@ -433,7 +433,12 @@ final class TransactionServerChannel {
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
-                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
+                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
+                if(importResult == null) {
+                    final XAException xae = new XAException(XAException.XAER_NOTA);
+                    writeExceptionResponse(M_RESP_XA_BEFORE, i, xae);
+                    return;
+                }
                 // run operation while associated
                 importResult.getTransaction().performConsumer(SubordinateTransactionControl::beforeCompletion, importResult.getControl());
                 writeSimpleResponse(M_RESP_XA_BEFORE, i);
