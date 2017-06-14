@@ -78,6 +78,10 @@ public interface Log extends BasicLogger {
     @Message(value = "Got exception on outbound message")
     void outboundException(@Cause Throwable e);
 
+    @LogMessage(level = Logger.Level.TRACE)
+    @Message(value = "Failure on running doRecover during initialization")
+    void doRecoverFailureOnIntialization(@Cause Throwable e);
+
     // Regular messages
 
     @Message(id = 0, value = "No transaction associated with the current thread")

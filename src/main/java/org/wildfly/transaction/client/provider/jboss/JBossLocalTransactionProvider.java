@@ -80,6 +80,14 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         this.staleTransactionTime = staleTransactionTime;
         this.ext = Assert.checkNotNullParam("ext", ext);
         this.tm = Assert.checkNotNullParam("tm", tm);
+
+        try {
+            ext.doRecover(null, null);
+        } catch (Exception e) {
+            // the recover method is called to load transactions from Narayana object store at startup
+            // if it fails we ignore, troubles will be adjusted during runtime
+            Log.log.doRecoverFailureOnIntialization(e);
+        }
     }
 
     /**
@@ -510,11 +518,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                 if (doNotImport) {
                     imported = false;
                     transaction = ext.getTransaction(xid);
-
-                    if(transaction == null) {
-                        ext.doRecover(null, null);
-                        transaction = ext.getTransaction(xid);
-                    }
 
                     if (transaction == null) {
                         return null;
