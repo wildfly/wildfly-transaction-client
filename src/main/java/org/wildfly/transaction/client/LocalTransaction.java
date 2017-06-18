@@ -129,7 +129,7 @@ public final class LocalTransaction extends AbstractTransaction {
 
     void unimportBacking() {
         final ContextTransactionManager.State state = ContextTransactionManager.INSTANCE.getStateRef().get();
-        if (state.transaction == this) {
+        if (state.transaction.equals(this)) {
             state.transaction = null;
         }
     }
