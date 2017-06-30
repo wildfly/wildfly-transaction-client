@@ -472,6 +472,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                     importedTransaction.doOnePhaseCommit();
                 } else {
                     if (! importedTransaction.doCommit()) {
+                        dropLocal(importedTransaction);
+                        ext.doRecover(null, null);
                         throw new XAException(XAException.XA_RETRY);
                     }
                 }
