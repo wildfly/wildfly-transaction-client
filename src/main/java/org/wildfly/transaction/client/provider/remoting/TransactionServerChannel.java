@@ -339,7 +339,11 @@ final class TransactionServerChannel {
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
-                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
+                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
+                if (importResult == null) {
+                    writeExceptionResponse(M_RESP_XA_ROLLBACK, i, new XAException(XAException.XAER_NOTA));
+                    return;
+                }
                 // run operation while associated
                 importResult.getTransaction().performConsumer(SubordinateTransactionControl::rollback, importResult.getControl());
                 writeSimpleResponse(M_RESP_XA_ROLLBACK, i);
@@ -389,7 +393,11 @@ final class TransactionServerChannel {
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
-                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
+                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
+                if (importResult == null) {
+                    writeExceptionResponse(M_RESP_XA_RB_ONLY, i, new XAException(XAException.XAER_NOTA));
+                    return;
+                }
                 importResult.getControl().end(XAResource.TMFAIL);
                 writeSimpleResponse(M_RESP_XA_RB_ONLY, i);
             } catch (XAException e) {
@@ -434,9 +442,8 @@ final class TransactionServerChannel {
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
-                if(importResult == null) {
-                    final XAException xae = new XAException(XAException.XAER_NOTA);
-                    writeExceptionResponse(M_RESP_XA_BEFORE, i, xae);
+                if (importResult == null) {
+                    writeExceptionResponse(M_RESP_XA_BEFORE, i, new XAException(XAException.XAER_NOTA));
                     return;
                 }
                 // run operation while associated
@@ -488,7 +495,11 @@ final class TransactionServerChannel {
         }
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
-                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0);
+                final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
+                if (importResult == null) {
+                    writeExceptionResponse(M_RESP_XA_PREPARE, invId, new XAException(XAException.XAER_NOTA));
+                    return;
+                }
                 // run operation while associated
                 int result = importResult.getControl().prepare();
                 if (result == XAResource.XA_RDONLY) {
