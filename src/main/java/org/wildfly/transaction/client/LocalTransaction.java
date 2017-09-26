@@ -190,11 +190,11 @@ public final class LocalTransaction extends AbstractTransaction {
         owner.getProvider().registerInterposedSynchronization(transaction, new AssociatingSynchronization(sync));
     }
 
-    Object getResource(final Object key) throws NullPointerException {
+    public Object getResource(final Object key) throws NullPointerException {
         return owner.getProvider().getResource(transaction, Assert.checkNotNullParamWithNullPointerException("key", key));
     }
 
-    void putResource(final Object key, final Object value) throws NullPointerException {
+    public void putResource(final Object key, final Object value) throws NullPointerException {
         owner.getProvider().putResource(transaction, Assert.checkNotNullParamWithNullPointerException("key", key), value);
     }
 

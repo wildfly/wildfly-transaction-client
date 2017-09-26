@@ -61,12 +61,12 @@ public final class RemoteTransaction extends AbstractTransaction {
         this.timeout = timeout;
     }
 
-    Object getResource(final Object key) throws NullPointerException {
+    public Object getResource(final Object key) throws NullPointerException {
         Assert.checkNotNullParamWithNullPointerException("key", key);
         return resources.get(key);
     }
 
-    void putResource(final Object key, final Object value) throws NullPointerException {
+    public void putResource(final Object key, final Object value) throws NullPointerException {
         Assert.checkNotNullParamWithNullPointerException("key", key);
         if (value == null) resources.remove(key); else resources.put(key, value);
     }

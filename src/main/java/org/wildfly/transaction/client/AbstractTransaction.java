@@ -56,6 +56,8 @@ public abstract class AbstractTransaction implements Transaction {
 
     private final Object outflowLock = new Object();
     private final long start = System.nanoTime();
+    private final Object resourceLock = new Object();
+
     final List<AssociationListener> associationListeners = new CopyOnWriteArrayList<>();
 
     AbstractTransaction() {
@@ -63,9 +65,21 @@ public abstract class AbstractTransaction implements Transaction {
 
     abstract void registerInterposedSynchronization(Synchronization synchronization) throws IllegalStateException;
 
-    abstract Object getResource(Object key) throws NullPointerException;
+    public abstract Object getResource(Object key) throws NullPointerException;
 
-    abstract void putResource(Object key, Object value) throws NullPointerException;
+    public abstract void putResource(Object key, Object value) throws NullPointerException;
+
+    // TODO get patches into Naryana to support this operation natively
+    public Object putResourceIfAbsent(Object key, Object value) throws IllegalArgumentException {
+        synchronized (resourceLock) {
+            Object resource = getResource(key);
+            if (resource != null) {
+                return resource;
+            }
+            putResource(key, value);
+        }
+        return null;
+    }
 
     abstract Object getKey();
 
