@@ -31,6 +31,7 @@ import javax.transaction.UserTransaction;
 import org.wildfly.naming.client.AbstractContext;
 import org.wildfly.naming.client.CloseableNamingEnumeration;
 import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.naming.client.ProviderEnvironment;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.ContextTransactionSynchronizationRegistry;
@@ -49,10 +50,13 @@ class TxnNamingContext extends AbstractContext {
     private static final String LOCAL_USER_TRANSACTION = "LocalUserTransaction";
     private static final String TRANSACTION_SYNCHRONIZATION_REGISTRY = "TransactionSynchronizationRegistry";
     private final NamingProvider namingProvider;
-    private final RemoteUserTransaction remoteUserTransaction = getRemoteUserTransaction();
+    private final ProviderEnvironment providerEnvironment;
+    private final RemoteUserTransaction remoteUserTransaction;
 
-    TxnNamingContext(final NamingProvider namingProvider) {
+    TxnNamingContext(final NamingProvider namingProvider, final ProviderEnvironment providerEnvironment) {
         this.namingProvider = namingProvider;
+        this.providerEnvironment = providerEnvironment;
+        remoteUserTransaction = getRemoteUserTransaction();
     }
 
     protected Object lookupNative(final Name name) throws NamingException {
@@ -129,12 +133,8 @@ class TxnNamingContext extends AbstractContext {
         return new ReadOnlyBinding(clazz.getSimpleName(), clazz.getName(), content, "txn:" + clazz.getSimpleName());
     }
 
-    private static RemoteUserTransaction getRemoteUserTransaction() {
-        AuthenticationContext context = AuthenticationContext.captureCurrent();
-        final NamingProvider currentNamingProvider = NamingProvider.getCurrentNamingProvider();
-        if (currentNamingProvider != null) {
-            context = currentNamingProvider.getProviderEnvironment().getAuthenticationContextSupplier().get();
-        }
+    private RemoteUserTransaction getRemoteUserTransaction() {
+        AuthenticationContext context = providerEnvironment.getAuthenticationContextSupplier().get();
         return context.runFunction(RemoteTransactionContext::getUserTransaction, RemoteTransactionContext.getInstance());
     }
 
