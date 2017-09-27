@@ -96,16 +96,12 @@ class TxnNamingContext extends AbstractContext {
             throw nameNotFound(name);
         }
         return CloseableNamingEnumeration.fromIterable(
-            namingProvider == null ?
                 Arrays.asList(
                     nameClassPair(UserTransaction.class),
                     nameClassPair(RemoteUserTransaction.class),
                     nameClassPair(LocalUserTransaction.class),
                     nameClassPair(TransactionManager.class),
                     nameClassPair(TransactionSynchronizationRegistry.class)
-                ) :
-                Collections.singleton(
-                    nameClassPair(UserTransaction.class)
                 )
         );
     }
