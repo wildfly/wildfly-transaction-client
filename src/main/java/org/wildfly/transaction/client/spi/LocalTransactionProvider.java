@@ -111,6 +111,18 @@ public interface LocalTransactionProvider extends TransactionProvider {
     void putResource(@NotNull Transaction transaction, @NotNull Object key, Object value) throws IllegalArgumentException;
 
     /**
+     * Put a resource on to the given transaction if the resource does not already exist.  Providers which do not
+     * support this operation must emulate it.
+     *
+     * @param transaction the transaction (must not be {@code null})
+     * @param key the key to store under (not {@code null})
+     * @param value the value to store
+     * @return the existing value, or {@code null} if none is set
+     * @throws IllegalArgumentException if the transaction does not belong to this provider
+     */
+    Object putResourceIfAbsent(@NotNull Transaction transaction, @NotNull Object key, Object value) throws IllegalArgumentException;
+
+    /**
      * Determine if the given transaction is rollback-only.
      *
      * @param transaction the transaction (not {@code null})
@@ -299,6 +311,10 @@ public interface LocalTransactionProvider extends TransactionProvider {
         }
 
         public void putResource(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
+            throw new IllegalArgumentException(Log.log.transactionNotAssociatedWithThisProvider().getMessage());
+        }
+
+        public Object putResourceIfAbsent(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
             throw new IllegalArgumentException(Log.log.transactionNotAssociatedWithThisProvider().getMessage());
         }
 

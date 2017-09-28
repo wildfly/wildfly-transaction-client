@@ -198,6 +198,10 @@ public final class LocalTransaction extends AbstractTransaction {
         owner.getProvider().putResource(transaction, Assert.checkNotNullParamWithNullPointerException("key", key), value);
     }
 
+    public Object putResourceIfAbsent(final Object key, final Object value) throws IllegalArgumentException {
+        return owner.getProvider().putResourceIfAbsent(transaction, Assert.checkNotNullParamWithNullPointerException("key", key), value);
+    }
+
     Object getKey() {
         return owner.getProvider().getKey(transaction);
     }

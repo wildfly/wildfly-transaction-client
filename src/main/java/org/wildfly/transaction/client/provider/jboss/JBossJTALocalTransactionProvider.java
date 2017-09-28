@@ -46,6 +46,8 @@ import org.wildfly.transaction.client._private.Log;
 
 final class JBossJTALocalTransactionProvider extends JBossLocalTransactionProvider {
 
+    private final Object resourceLock = new Object();
+
     JBossJTALocalTransactionProvider(final int staleTransactionTime, final ExtendedJBossXATerminator ext, final TransactionManager tm) {
         super(ext, staleTransactionTime, tm);
     }
@@ -93,6 +95,17 @@ final class JBossJTALocalTransactionProvider extends JBossLocalTransactionProvid
 
     public void putResource(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
         ((TransactionImple) transaction).putTxLocalResource(key, value);
+    }
+
+    public Object putResourceIfAbsent(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
+        synchronized (resourceLock) {
+            Object existing = getResource(transaction, key);
+            if (existing != null) {
+                return existing;
+            }
+            putResource(transaction, key, value);
+            return null;
+        }
     }
 
     public boolean getRollbackOnly(@NotNull final Transaction transaction) throws IllegalArgumentException {
