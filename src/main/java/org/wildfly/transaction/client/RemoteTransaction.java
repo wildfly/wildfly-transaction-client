@@ -71,6 +71,11 @@ public final class RemoteTransaction extends AbstractTransaction {
         if (value == null) resources.remove(key); else resources.put(key, value);
     }
 
+    public Object putResourceIfAbsent(final Object key, final Object value) throws IllegalArgumentException {
+        Assert.checkNotNullParamWithNullPointerException("key", key);
+        return value == null ? resources.get(key) : resources.putIfAbsent(key, value);
+    }
+
     Object getKey() {
         return key;
     }
