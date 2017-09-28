@@ -501,7 +501,7 @@ final class TransactionServerChannel {
                     return;
                 }
                 // run operation while associated
-                int result = importResult.getControl().prepare();
+                int result = ! importResult.getTransaction().isImported() ? XAResource.XA_RDONLY : importResult.getControl().prepare();
                 if (result == XAResource.XA_RDONLY) {
                     writeSimpleResponse(M_RESP_XA_PREPARE, i, P_XA_RDONLY);
                 } else {
