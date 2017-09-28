@@ -222,11 +222,27 @@ public final class RemoteTransaction extends AbstractTransaction {
         }
     }
 
+    /**
+     * Attempt to clear the location set on this transaction, disassociating it
+     * with the remote transport provider. There is only a limited time window
+     * at which this can occur, before the transaction is ever used. Typically
+     * this is only useful for retrying an initial invocation on a transaction.
+     *
+     * @return whether the attempt was successful
+     */
+    public boolean tryClearLocation() {
+        return stateRef.get().tryToDisassociate(stateRef);
+    }
+
     abstract static class State {
         State() {
         }
 
         abstract void join(AtomicReference<State> stateRef, URI location, SimpleTransactionControl control) throws IllegalStateException;
+
+        boolean tryToDisassociate(AtomicReference<State> stateRef) {
+            return false;
+        }
 
         abstract void commit(AtomicReference<State> stateRef) throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException;
 
@@ -302,11 +318,16 @@ public final class RemoteTransaction extends AbstractTransaction {
         int getStatus() {
             return status;
         }
+
+        boolean tryToDisassociate(AtomicReference<State> stateRef) {
+            return true;
+        }
     }
 
     abstract static class Located extends Unresolved {
         final URI location;
         final SimpleTransactionControl control;
+        volatile boolean multipleJoins = false;
 
         Located(final URI location, final SimpleTransactionControl control) {
             this.location = location;
@@ -317,6 +338,7 @@ public final class RemoteTransaction extends AbstractTransaction {
             if (! this.location.equals(location)) {
                 throw Log.log.locationAlreadyInitialized(location, this.location);
             }
+            multipleJoins = true;
         }
 
         void rollback(final AtomicReference<State> stateRef) throws IllegalStateException, SystemException {
@@ -384,6 +406,10 @@ public final class RemoteTransaction extends AbstractTransaction {
                 }
                 control.setRollbackOnly();
             }
+        }
+
+        boolean tryToDisassociate(AtomicReference<State> stateRef) throws IllegalStateException {
+            return !multipleJoins && (stateRef.compareAndSet(this, Unlocated.ACTIVE) || stateRef.get().tryToDisassociate(stateRef));
         }
     }
 
