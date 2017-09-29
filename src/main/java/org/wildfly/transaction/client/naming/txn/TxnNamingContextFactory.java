@@ -24,6 +24,7 @@ import javax.naming.NamingException;
 import org.kohsuke.MetaInfServices;
 import org.wildfly.naming.client.NamingContextFactory;
 import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.naming.client.ProviderEnvironment;
 import org.wildfly.naming.client.util.FastHashtable;
 
 /**
@@ -37,7 +38,7 @@ public final class TxnNamingContextFactory implements NamingContextFactory {
         return nameScheme != null && nameScheme.equals("txn");
     }
 
-    public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env) throws NamingException {
-        return new TxnNamingContext(namingProvider);
+    public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env, final ProviderEnvironment providerEnvironment) throws NamingException {
+        return new TxnNamingContext(namingProvider, providerEnvironment);
     }
 }
