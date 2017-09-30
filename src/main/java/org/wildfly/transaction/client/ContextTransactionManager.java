@@ -30,6 +30,7 @@ import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 
+import org.jboss.tm.TransactionTimeoutConfiguration;
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.TransactionPermission;
 import org.wildfly.transaction.client._private.Log;
@@ -39,7 +40,7 @@ import org.wildfly.transaction.client._private.Log;
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class ContextTransactionManager implements TransactionManager {
+public final class ContextTransactionManager implements TransactionManager, TransactionTimeoutConfiguration {
     static final ContextTransactionManager INSTANCE = new ContextTransactionManager();
 
     private static final AtomicInteger defaultTimeoutRef = new AtomicInteger(LocalTransactionContext.DEFAULT_TXN_TIMEOUT);
@@ -153,6 +154,16 @@ public final class ContextTransactionManager implements TransactionManager {
 
     boolean setAvailable(boolean available) {
         return stateRef.get().available = available;
+    }
+
+    @Override
+    public long getTimeLeftBeforeTransactionTimeout(boolean errorRollback) throws RollbackException {
+        final AbstractTransaction transaction = stateRef.get().transaction;
+        if (transaction instanceof LocalTransaction) {
+            return ((LocalTransaction) transaction).getTimeLeftBeforeTransactionTimeout(errorRollback);
+        } else {
+            return -1;
+        }
     }
 
     /**
