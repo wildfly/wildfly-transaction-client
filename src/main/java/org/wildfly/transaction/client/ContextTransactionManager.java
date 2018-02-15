@@ -167,7 +167,7 @@ public final class ContextTransactionManager implements TransactionManager {
     /**
      * Get the global default transaction timeout.
      *
-     * @return the global default transaction timeout in seconds (>= 1)
+     * @return the global default transaction timeout in seconds (>= 0)
      */
     public static int getGlobalDefaultTransactionTimeout() {
         return defaultTimeoutRef.get();
@@ -176,11 +176,11 @@ public final class ContextTransactionManager implements TransactionManager {
     /**
      * Set the global default transaction timeout, returning the original value.
      *
-     * @param newTimeout the new timeout value in seconds (must be >= 1)
-     * @return the previous timeout in seconds (>= 1)
+     * @param newTimeout the new timeout value in seconds (must be >= 0)
+     * @return the previous timeout in seconds (>= 0)
      */
     public static int setGlobalDefaultTransactionTimeout(int newTimeout) {
-        Assert.checkMinimumParameter("newTimeout", 1, newTimeout);
+        Assert.checkMinimumParameter("newTimeout", 0, newTimeout);
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(SET_TIMEOUT_PERMISSION);
@@ -192,11 +192,11 @@ public final class ContextTransactionManager implements TransactionManager {
      * Set the minimum global default transaction timeout, returning the original value.  The new timeout will not be
      * less than the given minimum.
      *
-     * @param minimumTimeout the minimum timeout value in seconds (must be >= 1)
-     * @return the previous timeout in seconds (>= 1)
+     * @param minimumTimeout the minimum timeout value in seconds (must be >= 0)
+     * @return the previous timeout in seconds (>= 0)
      */
     public static int setMinimumGlobalDefaultTransactionTimeout(int minimumTimeout) {
-        Assert.checkMinimumParameter("minimumTimeout", 1, minimumTimeout);
+        Assert.checkMinimumParameter("minimumTimeout", 0, minimumTimeout);
         int oldVal = defaultTimeoutRef.get();
         if (oldVal >= minimumTimeout) {
             return oldVal;
@@ -215,11 +215,11 @@ public final class ContextTransactionManager implements TransactionManager {
      * Set the maximum global default transaction timeout, returning the original value.  The new timeout will not be
      * greater than the given maximum.
      *
-     * @param maximumTimeout the maximum timeout value in seconds (must be >= 1)
-     * @return the previous timeout in seconds (>= 1)
+     * @param maximumTimeout the maximum timeout value in seconds (must be >= 0)
+     * @return the previous timeout in seconds (>= 0)
      */
     public static int setMaximumGlobalDefaultTransactionTimeout(int maximumTimeout) {
-        Assert.checkMinimumParameter("maximumTimeout", 1, maximumTimeout);
+        Assert.checkMinimumParameter("maximumTimeout", 0, maximumTimeout);
         int oldVal = defaultTimeoutRef.get();
         if (oldVal <= maximumTimeout) {
             return oldVal;
