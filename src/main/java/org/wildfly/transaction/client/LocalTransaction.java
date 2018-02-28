@@ -34,6 +34,7 @@ import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client._private.Log;
+import org.wildfly.transaction.client.spi.LocalTransactionProvider;
 
 /**
  * A transaction from a local transaction provider.
@@ -132,6 +133,10 @@ public final class LocalTransaction extends AbstractTransaction {
         if (state.transaction.equals(this)) {
             state.transaction = null;
         }
+    }
+
+    LocalTransactionProvider getProvider() {
+        return owner.getProvider();
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
