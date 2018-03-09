@@ -55,7 +55,11 @@ final class XAOutflowedResources {
             if (xaResource != null) {
                 return xaResource;
             }
-            xaResource = new SubordinateXAResource(location, parentName);
+            final XAResourceRegistry resourceRegistry = transaction.getProvider().getXAResourceRegistry(transaction);
+            xaResource = new SubordinateXAResource(location, parentName, resourceRegistry);
+            if (resourceRegistry != null) {
+                resourceRegistry.addResource(xaResource, location);
+            }
             if (! transaction.enlistResource(xaResource)) {
                 throw Log.log.couldNotEnlist();
             }

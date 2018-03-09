@@ -23,6 +23,7 @@ import static java.security.AccessController.doPrivileged;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
+import java.nio.file.Path;
 import java.security.PrivilegedAction;
 
 import javax.transaction.HeuristicMixedException;
@@ -40,6 +41,7 @@ import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionImple;
 import com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.TransactionTimeoutConfiguration;
+import org.jboss.tm.XAResourceRecoveryRegistry;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
@@ -48,8 +50,9 @@ final class JBossJTALocalTransactionProvider extends JBossLocalTransactionProvid
 
     private final Object resourceLock = new Object();
 
-    JBossJTALocalTransactionProvider(final int staleTransactionTime, final ExtendedJBossXATerminator ext, final TransactionManager tm) {
-        super(ext, staleTransactionTime, tm);
+    JBossJTALocalTransactionProvider(final int staleTransactionTime, final ExtendedJBossXATerminator ext, final TransactionManager tm,
+                                     final XAResourceRecoveryRegistry reg, final Path xaRecoveryPath) {
+        super(ext, staleTransactionTime, tm, reg, xaRecoveryPath);
     }
 
     int getTransactionManagerTimeout() throws SystemException {

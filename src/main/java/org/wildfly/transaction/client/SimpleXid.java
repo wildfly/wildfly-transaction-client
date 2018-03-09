@@ -116,6 +116,31 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
         return res;
     }
 
+    public String toHexString() {
+        StringBuilder b = new StringBuilder();
+        toHexString(b);
+        return b.toString();
+    }
+
+    private void toHexString(StringBuilder builder) {
+        builder.append(Integer.toHexString(formatId)).append(':');
+        for (final byte x : globalId) {
+            final int v = x & 0xff;
+            if (v < 16) {
+                builder.append('0');
+            }
+            builder.append(Integer.toHexString(v));
+        }
+        builder.append(':');
+        for (final byte x : branchId) {
+            final int v = x & 0xff;
+            if (v < 16) {
+                builder.append('0');
+            }
+            builder.append(Integer.toHexString(v));
+        }
+    }
+
     private static int compareByteArrays(byte[] a1, byte[] a2) {
         final int l1 = a1.length;
         final int l2 = a2.length;
@@ -130,22 +155,8 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
 
     public String toString() {
         StringBuilder b = new StringBuilder();
-        b.append("XID [").append(Integer.toHexString(formatId)).append(':');
-        for (final byte x : globalId) {
-            final int v = x & 0xff;
-            if (v < 16) {
-                b.append('0');
-            }
-            b.append(Integer.toHexString(v));
-        }
-        b.append(':');
-        for (final byte x : branchId) {
-            final int v = x & 0xff;
-            if (v < 16) {
-                b.append('0');
-            }
-            b.append(Integer.toHexString(v));
-        }
+        b.append("XID [");
+        toHexString(b);
         b.append(']');
         return b.toString();
     }
