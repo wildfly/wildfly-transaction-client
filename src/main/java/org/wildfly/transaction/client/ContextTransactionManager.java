@@ -110,8 +110,23 @@ public final class ContextTransactionManager implements TransactionManager {
         stateRef.get().setTimeout(timeout);
     }
 
+    /**
+     * Get the current effective transaction timeout, in seconds.  If the current thread transaction timeout is set
+     * to zero, the global default value is returned.
+     *
+     * @return the effective transaction timeout (always greater than zero)
+     */
     public int getTransactionTimeout() {
         return stateRef.get().getTimeout();
+    }
+
+    /**
+     * Get the current configured transaction timeout, in seconds, or zero if the global default is in use.
+     *
+     * @return the effective transaction timeout, or zero if the global default is in use
+     */
+    public int getConfiguredTransactionTimeout() {
+        return stateRef.get().getConfiguredTimeout();
     }
 
     public AbstractTransaction suspend() throws SystemException {
@@ -242,6 +257,13 @@ public final class ContextTransactionManager implements TransactionManager {
         AbstractTransaction transaction;
         private int timeout = 0;
         boolean available = true;
+
+        State() {
+        }
+
+        int getConfiguredTimeout() {
+            return timeout;
+        }
 
         int getTimeout() {
             final int timeout = this.timeout;
