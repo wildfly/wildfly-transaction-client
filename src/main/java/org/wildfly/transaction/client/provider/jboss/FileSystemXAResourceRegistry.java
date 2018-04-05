@@ -115,11 +115,11 @@ final class FileSystemXAResourceRegistry {
      * @throws SystemException if an unexpected failure occurs when creating the registry file
      */
     XAResourceRegistry getXAResourceRegistryFile(LocalTransaction transaction) throws SystemException {
-        XAResourceRegistry registry = (XAResourceRegistry) provider.getResource(transaction, XA_RESOURCE_REGISTRY_KEY);
+        XAResourceRegistry registry = (XAResourceRegistry) transaction.getResource(XA_RESOURCE_REGISTRY_KEY);
         if (registry != null)
             return registry;
         registry = new XAResourceRegistryFile(transaction.getXid());
-        provider.putResource(transaction, XA_RESOURCE_REGISTRY_KEY, registry);
+        transaction.putResource(XA_RESOURCE_REGISTRY_KEY, registry);
         return registry;
     }
 
