@@ -56,6 +56,9 @@ public final class LocalTransaction extends AbstractTransaction {
         }
         try {
             owner.getProvider().commitLocal(transaction);
+        } catch (RollbackException re) {
+            addRollbackExceptions(re);
+            throw re;
         } finally {
             final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
@@ -72,6 +75,9 @@ public final class LocalTransaction extends AbstractTransaction {
         notifyAssociationListeners(false);
         try {
             owner.getProvider().getTransactionManager().commit();
+        } catch (RollbackException re) {
+            addRollbackExceptions(re);
+            throw re;
         } finally {
             final XAOutflowedResources outflowedResources = RemoteTransactionContext.getOutflowedResources(this);
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
@@ -140,6 +146,7 @@ public final class LocalTransaction extends AbstractTransaction {
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
+        super.setRollbackOnly();
         transaction.setRollbackOnly();
     }
 

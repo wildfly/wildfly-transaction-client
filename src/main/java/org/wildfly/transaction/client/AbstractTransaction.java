@@ -21,6 +21,7 @@ package org.wildfly.transaction.client;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -54,6 +55,8 @@ import org.wildfly.transaction.client._private.Log;
 public abstract class AbstractTransaction implements Transaction {
     private static final TransactionPermission ASSOCIATION_LISTENER_PERMISSION = TransactionPermission.forName("registerAssociationListener");
 
+    private static final Object RB_EX_KEY = new Object();
+
     private final Object outflowLock = new Object();
     private final long start = System.nanoTime();
 
@@ -77,6 +80,30 @@ public abstract class AbstractTransaction implements Transaction {
             return getStatus() == Status.STATUS_MARKED_ROLLBACK;
         } catch (SystemException e) {
             return false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setRollbackOnly() throws IllegalStateException, SystemException {
+        List<Throwable> list = (List<Throwable>) getResource(RB_EX_KEY);
+        if (list == null) {
+            List<Throwable> appearing = (List<Throwable>) putResourceIfAbsent(RB_EX_KEY, list = new ArrayList<>());
+            if (appearing != null) {
+                list = appearing;
+            }
+        }
+        synchronized (list) {
+            list.add(Log.log.markedRollbackOnly());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    void addRollbackExceptions(Exception ex) {
+        List<Throwable> list = (List<Throwable>) getResource(RB_EX_KEY);
+        if (list != null) {
+            for (Throwable throwable : list) {
+                ex.addSuppressed(throwable);
+            }
         }
     }
 

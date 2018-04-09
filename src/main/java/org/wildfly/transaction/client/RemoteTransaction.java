@@ -108,7 +108,12 @@ public final class RemoteTransaction extends AbstractTransaction {
 
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
         final AtomicReference<State> stateRef = this.stateRef;
-        stateRef.get().commit(stateRef);
+        try {
+            stateRef.get().commit(stateRef);
+        } catch (RollbackException re) {
+            addRollbackExceptions(re);
+            throw re;
+        }
     }
 
     void commitAndDissociate() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
@@ -140,6 +145,7 @@ public final class RemoteTransaction extends AbstractTransaction {
     }
 
     public void setRollbackOnly() throws IllegalStateException, SystemException {
+        super.setRollbackOnly();
         final AtomicReference<State> stateRef = this.stateRef;
         stateRef.get().setRollbackOnly(stateRef);
     }
