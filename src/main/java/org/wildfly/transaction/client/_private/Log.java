@@ -405,4 +405,20 @@ public interface Log extends BasicLogger {
 
     @Message(id = 96, value = "Unexpected exception on XA recovery")
     IllegalStateException unexpectedExceptionOnXAResourceRecovery(@Cause IOException e);
+
+    @Message(id = 97, value = "Synchronization may not be registered at this time")
+    IllegalStateException cannotRegisterSynchronization();
+
+    @Message(id = 98, value = "Before-completion synchronization has already run")
+    IllegalStateException beforeCompletionAlreadyRun();
+
+    @Message(id = 99, value = "After-completion synchronization has already run")
+    IllegalStateException afterCompletionAlreadyRun();
+
+    @LogMessage(level = Logger.Level.WARN)
+    @Message(id = 100, value = "After-completion synchronization threw an uncaught exception")
+    void afterCompletionException(@Cause Throwable cause);
+
+    @Message(id = 101, value = "Cannot register synchronization on transaction from an unknown/unsupported context")
+    IllegalStateException unknownTransaction();
 }
