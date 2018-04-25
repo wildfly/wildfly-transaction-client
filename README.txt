@@ -1,1 +1,1 @@
-this contains all sorts of facinating information
+this contains all sorts of fascinating information
