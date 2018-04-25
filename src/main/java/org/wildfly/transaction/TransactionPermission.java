@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+break something
 package org.wildfly.transaction;
 
 import org.wildfly.common.Assert;
