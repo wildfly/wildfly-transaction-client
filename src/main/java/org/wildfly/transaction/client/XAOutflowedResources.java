@@ -28,7 +28,6 @@ import javax.transaction.Status;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
-import javax.transaction.xa.XAResource;
 
 import org.wildfly.transaction.client._private.Log;
 
@@ -72,16 +71,6 @@ final class XAOutflowedResources {
                         try {
                             if (finalXaResource.commitToEnlistment()) {
                                 finalXaResource.beforeCompletion(finalXaResource.getXid());
-                            } else {
-                                // try and delist, so the TM can maybe perform a 1PC; if it fails that's OK
-                                try {
-                                    transaction.delistResource(finalXaResource, XAResource.TMSUCCESS);
-                                    synchronized (this) {
-                                        enlistedSubordinates--;
-                                    }
-                                } catch (SystemException ignored) {
-                                    // optimization failed!
-                                }
                             }
                         } catch (XAException e) {
                             throw new SynchronizationException(e);
