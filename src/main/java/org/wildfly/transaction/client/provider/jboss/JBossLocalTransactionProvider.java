@@ -25,7 +25,6 @@ import static com.arjuna.ats.arjuna.coordinator.TwoPhaseOutcome.PREPARE_READONLY
 import static java.lang.Long.signum;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -52,14 +51,11 @@ import com.arjuna.ats.arjuna.common.arjPropertyManager;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
-import org.jboss.tm.XAResourceRecoveryRegistry;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.ImportResult;
-import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAImporter;
-import org.wildfly.transaction.client.XAResourceRegistry;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.LocalTransactionProvider;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
@@ -78,10 +74,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
     private final XAImporterImpl xi = new XAImporterImpl();
     private final ConcurrentSkipListSet<XidKey> timeoutSet = new ConcurrentSkipListSet<>();
     private final ConcurrentMap<SimpleXid, Entry> known = new ConcurrentHashMap<>();
-    private final FileSystemXAResourceRegistry fileSystemXAResourceRegistry;
 
-    JBossLocalTransactionProvider(final ExtendedJBossXATerminator ext, final int staleTransactionTime, final TransactionManager tm,
-                                  final XAResourceRecoveryRegistry registry, final Path xaRecoveryDirRelativeToPath) {
+    JBossLocalTransactionProvider(final ExtendedJBossXATerminator ext, final int staleTransactionTime, final TransactionManager tm) {
         Assert.checkMinimumParameter("setTransactionTimeout", 0, staleTransactionTime);
         this.staleTransactionTime = staleTransactionTime;
         this.ext = Assert.checkNotNullParam("ext", ext);
@@ -94,8 +88,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             // if it fails we ignore, troubles will be adjusted during runtime
             Log.log.doRecoverFailureOnIntialization(e);
         }
-        this.fileSystemXAResourceRegistry = new FileSystemXAResourceRegistry(this, xaRecoveryDirRelativeToPath);
-        registry.addXAResourceRecovery(fileSystemXAResourceRegistry::getInDoubtXAResources);
     }
 
     /**
@@ -153,11 +145,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             }
             throw t;
         }
-    }
-
-    @Override
-    public XAResourceRegistry getXAResourceRegistry(LocalTransaction transaction) throws SystemException {
-        return fileSystemXAResourceRegistry.getXAResourceRegistryFile(transaction);
     }
 
     abstract int getTransactionManagerTimeout() throws SystemException;
@@ -633,8 +620,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         private XATerminator xaTerminator;
         private TransactionManager transactionManager;
         private TransactionSynchronizationRegistry transactionSynchronizationRegistry;
-        private XAResourceRecoveryRegistry xaResourceRecoveryRegistry;
-        private Path xaRecoveryLogDirRelativeToPath;
 
         Builder() {
         }
@@ -744,28 +729,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
 
         /**
-         * Set the xa resource recovery registry.
-         *
-         * @param reg xa resource recovery registry (must not be {@code null})
-         */
-        public Builder setXAResourceRecoveryRegistry(final XAResourceRecoveryRegistry reg) {
-            Assert.checkNotNullParam("reg", reg);
-            this.xaResourceRecoveryRegistry = reg;
-            return this;
-        }
-
-        /**
-         * Set the xa recovery log dir relative to path
-         *
-         * @param path the xa recovery log file relative to path (must not be {@code null}
-         */
-        public Builder setXARecoveryLogDirRelativeToPath(Path path) {
-            Assert.checkNotNullParam("path", path);
-            this.xaRecoveryLogDirRelativeToPath = path;
-            return this;
-        }
-
-        /**
          * Build this provider.  If any required properties are {@code null}, an exception is thrown.
          *
          * @return the built provider (not {@code null})
@@ -780,12 +743,10 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             Assert.checkMinimumParameter("staleTransactionTime", 0, staleTransactionTime);
             if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple
              || transactionManager instanceof com.arjuna.ats.jbossatx.jta.TransactionManagerDelegate) {
-                return new JBossJTALocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator,
-                        transactionManager, xaResourceRecoveryRegistry, xaRecoveryLogDirRelativeToPath);
+                return new JBossJTALocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator, transactionManager);
             } else if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.jts.TransactionManagerImple
              || transactionManager instanceof com.arjuna.ats.jbossatx.jts.TransactionManagerDelegate) {
-                return new JBossJTSLocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator,
-                        transactionManager, xaResourceRecoveryRegistry, xaRecoveryLogDirRelativeToPath);
+                return new JBossJTSLocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator, transactionManager);
             } else {
                 throw Log.log.unknownTransactionManagerType(transactionManager.getClass());
             }

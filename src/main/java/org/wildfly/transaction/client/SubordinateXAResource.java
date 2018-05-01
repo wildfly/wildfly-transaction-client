@@ -46,7 +46,6 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private final URI location;
     private final String parentName;
-    private final XAResourceRegistry resourceRegistry;
     private volatile int timeout = LocalTransactionContext.DEFAULT_TXN_TIMEOUT;
     private long startTime = 0L;
     private volatile Xid xid;
@@ -54,22 +53,15 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private final AtomicInteger stateRef = new AtomicInteger(0);
 
-    SubordinateXAResource(final URI location, final String parentName, XAResourceRegistry recoveryRegistry) {
+    SubordinateXAResource(final URI location, final String parentName) {
         this.location = location;
         this.parentName = parentName;
-        this.resourceRegistry = recoveryRegistry;
-    }
-
-    SubordinateXAResource(final URI location, final String parentName, final int flags, XAResourceRegistry recoveryRegistry) {
-        this(location, parentName, recoveryRegistry);
-        stateRef.set(flags);
     }
 
     SubordinateXAResource(final URI location, final int flags, final String parentName) {
         this.location = location;
         this.parentName = parentName;
         stateRef.set(flags);
-        this.resourceRegistry = null;
     }
 
     Xid getXid() {
@@ -144,41 +136,15 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     public int prepare(final Xid xid) throws XAException {
-        final int result;
-        try {
-            result = commitToEnlistment() ? lookup(xid).prepare() : XA_RDONLY;
-        } catch (XAException | RuntimeException exception) {
-            if (resourceRegistry != null)
-                resourceRegistry.resourceInDoubt(this);
-            throw exception;
-        }
-        if (resourceRegistry != null)
-            resourceRegistry.removeResource(this);
-        return result;
+        return commitToEnlistment() ? lookup(xid).prepare() : XA_RDONLY;
     }
 
     public void commit(final Xid xid, final boolean onePhase) throws XAException {
-        try {
-            if (commitToEnlistment()) lookup(xid).commit(onePhase);
-        } catch (XAException | RuntimeException exception) {
-            if (onePhase && resourceRegistry != null)
-                resourceRegistry.resourceInDoubt(this);
-            throw exception;
-        }
-        if (onePhase && resourceRegistry != null)
-            resourceRegistry.removeResource(this);
+        if (commitToEnlistment()) lookup(xid).commit(onePhase);
     }
 
     public void rollback(final Xid xid) throws XAException {
-        try {
-            if (commitToEnlistment()) lookup(xid).rollback();
-        } catch (XAException | RuntimeException e) {
-            if (resourceRegistry != null)
-                resourceRegistry.resourceInDoubt(this);
-            throw e;
-        }
-        if (resourceRegistry != null)
-            resourceRegistry.removeResource(this);
+        if (commitToEnlistment()) lookup(xid).rollback();
     }
 
     public void forget(final Xid xid) throws XAException {
