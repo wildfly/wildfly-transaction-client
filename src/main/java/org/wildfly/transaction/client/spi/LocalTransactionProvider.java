@@ -34,10 +34,8 @@ import javax.transaction.xa.Xid;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.ImportResult;
-import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAImporter;
-import org.wildfly.transaction.client.XAResourceRegistry;
 import org.wildfly.transaction.client._private.Log;
 
 /**
@@ -217,18 +215,6 @@ public interface LocalTransactionProvider extends TransactionProvider {
      * @return the provider interface instance, or {@code null} if none matches
      */
     default <T> T getProviderInterface(Transaction transaction, Class<T> providerInterfaceType) {
-        return null;
-    }
-
-    /**
-     * Return the XAResource registry associated with {@code transaction}. If there is no such
-     * registry yet, one is created.
-     *
-     * @param transaction the transaction
-     * @return the registry associated with {@code transaction}. Can return {@code null} if this
-     * provider requires no XAResource registry
-     */
-    default XAResourceRegistry getXAResourceRegistry(LocalTransaction transaction) throws SystemException {
         return null;
     }
 
