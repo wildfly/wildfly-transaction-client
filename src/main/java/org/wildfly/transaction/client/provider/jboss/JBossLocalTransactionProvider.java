@@ -778,6 +778,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             Assert.checkNotNullParam("extendedJBossXATerminator", extendedJBossXATerminator);
             Assert.checkNotNullParam("transactionManager", transactionManager);
             Assert.checkMinimumParameter("staleTransactionTime", 0, staleTransactionTime);
+            Assert.checkNotNullParam("xaResourceRecoveryRegistry", xaResourceRecoveryRegistry);
             if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple
              || transactionManager instanceof com.arjuna.ats.jbossatx.jta.TransactionManagerDelegate) {
                 return new JBossJTALocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator,
