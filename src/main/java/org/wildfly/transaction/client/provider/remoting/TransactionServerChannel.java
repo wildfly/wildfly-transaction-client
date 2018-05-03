@@ -217,7 +217,7 @@ final class TransactionServerChannel {
         if (securityIdentity == null) {
             return;
         }
-        securityIdentity.runAs(() -> {
+        securityIdentity.runAs((Runnable) () -> {
             final LocalTransaction transaction = txn.getTransaction();
             if (transaction != null) try {
                 transaction.performAction(transaction::rollback);
