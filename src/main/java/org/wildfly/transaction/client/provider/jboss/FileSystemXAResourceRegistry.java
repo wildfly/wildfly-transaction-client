@@ -205,7 +205,7 @@ final class FileSystemXAResourceRegistry {
          */
         XAResourceRegistryFile(Xid xid) throws SystemException {
             xaRecoveryPath.toFile().mkdir(); // create dir if non existent
-            final String xidString = SimpleXid.of(xid).toHexString();
+            final String xidString = SimpleXid.of(xid).toHexString('_');
             this.filePath = xaRecoveryPath.resolve(xidString);
             openFilePaths.add(xidString);
             try {
