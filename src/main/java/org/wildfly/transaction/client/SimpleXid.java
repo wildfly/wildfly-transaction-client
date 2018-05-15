@@ -117,13 +117,17 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
     }
 
     public String toHexString() {
+        return toHexString(':');
+    }
+
+    public String toHexString(char separator) {
         StringBuilder b = new StringBuilder();
-        toHexString(b);
+        toHexString(b, separator);
         return b.toString();
     }
 
-    private void toHexString(StringBuilder builder) {
-        builder.append(Integer.toHexString(formatId)).append(':');
+    private void toHexString(StringBuilder builder, char separator) {
+        builder.append(Integer.toHexString(formatId)).append(separator);
         for (final byte x : globalId) {
             final int v = x & 0xff;
             if (v < 16) {
@@ -131,7 +135,7 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
             }
             builder.append(Integer.toHexString(v));
         }
-        builder.append(':');
+        builder.append(separator);
         for (final byte x : branchId) {
             final int v = x & 0xff;
             if (v < 16) {
@@ -156,7 +160,7 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("XID [");
-        toHexString(b);
+        toHexString(b, ':');
         b.append(']');
         return b.toString();
     }
