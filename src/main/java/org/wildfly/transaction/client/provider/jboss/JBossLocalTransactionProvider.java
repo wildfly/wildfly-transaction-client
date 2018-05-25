@@ -612,7 +612,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         public Xid[] recover(final int flag, final String parentNodeName) throws XAException {
             try {
                 try {
-                    return ext.doRecover(null, parentNodeName);
+                    final Xid[] xids = ext.doRecover(null, parentNodeName);
+                    return xids == null ? SimpleXid.NO_XIDS : xids;
                 } catch (NotSupportedException e) {
                     throw new XAException(XAException.XAER_RMFAIL);
                 }
