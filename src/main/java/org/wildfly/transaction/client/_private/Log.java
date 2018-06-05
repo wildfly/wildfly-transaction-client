@@ -58,6 +58,12 @@ public interface Log extends BasicLogger {
     @Message(value = "Subordinate XAResource at %s")
     String subordinateXaResource(URI location);
 
+    // Warn
+
+    @LogMessage(level = Logger.Level.WARN)
+    @Message(value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
+    void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
+
     // Debug
 
     @LogMessage(level = Logger.Level.DEBUG)
@@ -81,6 +87,10 @@ public interface Log extends BasicLogger {
     @LogMessage(level = Logger.Level.TRACE)
     @Message(value = "Failure on running doRecover during initialization")
     void doRecoverFailureOnIntialization(@Cause Throwable e);
+
+    @LogMessage(level = Logger.Level.TRACE)
+    @Message(value = "Unknown xid %s to be removed from the instances known to the wfly txn client")
+    void unknownXidToBeRemovedFromTheKnownTransactionInstances(Xid xid);
 
     // Regular messages
 
