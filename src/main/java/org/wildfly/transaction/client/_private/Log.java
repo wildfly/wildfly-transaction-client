@@ -67,6 +67,9 @@ public interface Log extends BasicLogger {
     @Message(value = "Unknown I/O error when listing xa resource recovery files in %s (File.list() returned null)")
     void listXAResourceRecoveryFilesNull(File dir);
 
+    @LogMessage(level = Logger.Level.WARN)
+    @Message(value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
+    void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
 
     // Debug
 
@@ -111,6 +114,10 @@ public interface Log extends BasicLogger {
     @LogMessage(level = Logger.Level.TRACE)
     @Message(value = "Recovered in doubt xa resource (%s) from xa resource recovery registry %s")
     void xaResourceRecoveredFromRecoveryRegistry(URI uri, Path filePath);
+
+    @LogMessage(level = Logger.Level.TRACE)
+    @Message(value = "Unknown xid %s to be removed from the instances known to the wfly txn client")
+    void unknownXidToBeRemovedFromTheKnownTransactionInstances(Xid xid);
 
     // Regular messages
 
