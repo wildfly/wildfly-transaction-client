@@ -58,12 +58,6 @@ public interface Log extends BasicLogger {
     @Message(value = "Subordinate XAResource at %s")
     String subordinateXaResource(URI location);
 
-    // Warn
-
-    @LogMessage(level = Logger.Level.WARN)
-    @Message(value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
-    void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
-
     // Debug
 
     @LogMessage(level = Logger.Level.DEBUG)
@@ -367,4 +361,8 @@ public interface Log extends BasicLogger {
 
     @Message(id = 90, value = "Cannot assign location \"%s\" to transaction because it is already located at \"%s\"")
     IllegalStateException locationAlreadyInitialized(URI newLocation, URI oldLocation);
+
+    @LogMessage(level = Logger.Level.WARN)
+    @Message(id = 99, value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
+    void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
 }
