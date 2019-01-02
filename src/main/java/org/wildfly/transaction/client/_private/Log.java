@@ -403,6 +403,9 @@ public interface Log extends BasicLogger {
     @Message(id = 96, value = "Unexpected exception on XA recovery")
     IllegalStateException unexpectedExceptionOnXAResourceRecovery(@Cause IOException e);
 
+    @Message(id = 97, value = "Cannot enlist XA resource '%s' to transaction '%s' as timeout already elapsed")
+    SystemException cannotEnlistToTimeOutTransaction(XAResource xaRes, Transaction transaction);
+
     @LogMessage(level = Logger.Level.WARN)
     @Message(id = 98, value = "Unknown I/O error when listing xa resource recovery files in %s (File.list() returned null)")
     void listXAResourceRecoveryFilesNull(File dir);
