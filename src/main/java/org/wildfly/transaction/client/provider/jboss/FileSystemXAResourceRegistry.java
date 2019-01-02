@@ -17,6 +17,8 @@
  */
 package org.wildfly.transaction.client.provider.jboss;
 
+import static java.security.AccessController.doPrivileged;
+
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.SimpleXid;
@@ -29,6 +31,7 @@ import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 import java.io.File;
+import java.io.FilePermission;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -39,6 +42,9 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +62,7 @@ import java.util.Set;
  */
 final class FileSystemXAResourceRegistry {
 
+    private static final FilePermission FILE_PERMISSION = new FilePermission("<<ALL FILES>>", "read,write");
     /**
      * Name of recovery dir. Location of this dir can be defined at constructor.
      */
@@ -204,14 +211,24 @@ final class FileSystemXAResourceRegistry {
          * @throws SystemException if the there was a problem when creating the recovery file in file system
          */
         XAResourceRegistryFile(Xid xid) throws SystemException {
-            xaRecoveryPath.toFile().mkdir(); // create dir if non existent
+            
             final String xidString = SimpleXid.of(xid).toHexString('_');
             this.filePath = xaRecoveryPath.resolve(xidString);
-            openFilePaths.add(xidString);
+            
             try {
-                fileChannel = FileChannel.open(filePath, StandardOpenOption.APPEND, StandardOpenOption.CREATE_NEW);
+                fileChannel = doPrivileged((PrivilegedExceptionAction<FileChannel>) () -> {
+                    final SecurityManager sm = System.getSecurityManager();
+                    if(sm != null) {
+                        sm.checkPermission(FILE_PERMISSION);
+                    }
+                    xaRecoveryPath.toFile().mkdir(); // create dir if non existent
+                    return FileChannel.open(filePath, StandardOpenOption.APPEND, StandardOpenOption.CREATE_NEW);
+                });
+                openFilePaths.add(xidString);
                 fileChannel.lock();
                 Log.log.xaResourceRecoveryFileCreated(filePath);
+            } catch (PrivilegedActionException e) {
+                throw Log.log.createXAResourceRecoveryFileFailed(filePath, (IOException)e.getCause());
             } catch (IOException e) {
                 throw Log.log.createXAResourceRecoveryFileFailed(filePath, e);
             }
