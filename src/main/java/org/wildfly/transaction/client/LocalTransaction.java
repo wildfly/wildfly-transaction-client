@@ -18,8 +18,6 @@
 
 package org.wildfly.transaction.client;
 
-import static java.lang.Math.max;
-
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.InvalidTransactionException;
@@ -160,7 +158,8 @@ public final class LocalTransaction extends AbstractTransaction {
 
     public boolean enlistResource(final XAResource xaRes) throws RollbackException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("xaRes", xaRes);
-        final int estimatedRemainingTime = max(1, getEstimatedRemainingTime());
+        final int estimatedRemainingTime = getEstimatedRemainingTime();
+        if(estimatedRemainingTime == 0) throw Log.log.cannotEnlistToTimeOutTransaction(xaRes, this);
         try {
             xaRes.setTransactionTimeout(estimatedRemainingTime);
         } catch (XAException e) {
