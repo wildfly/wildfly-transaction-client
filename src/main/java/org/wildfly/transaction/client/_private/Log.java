@@ -82,6 +82,10 @@ public interface Log extends BasicLogger {
     @Message(value = "Failure on running doRecover during initialization")
     void doRecoverFailureOnIntialization(@Cause Throwable e);
 
+    @LogMessage(level = Logger.Level.TRACE)
+    @Message(value = "Unknown xid %s to be removed from the instances known to the wfly txn client")
+    void unknownXidToBeRemovedFromTheKnownTransactionInstances(Xid xid);
+
     // Regular messages
 
     @Message(id = 0, value = "No transaction associated with the current thread")
@@ -357,4 +361,8 @@ public interface Log extends BasicLogger {
 
     @Message(id = 90, value = "Cannot assign location \"%s\" to transaction because it is already located at \"%s\"")
     IllegalStateException locationAlreadyInitialized(URI newLocation, URI oldLocation);
+
+    @LogMessage(level = Logger.Level.WARN)
+    @Message(id = 99, value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
+    void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
 }

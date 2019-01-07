@@ -213,7 +213,22 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                         final ConcurrentMap<SimpleXid, Entry> known = JBossLocalTransactionProvider.this.known;
                         final Iterator<XidKey> iterator = timeoutSet.headSet(new XidKey(SimpleXid.EMPTY, timeTick)).iterator();
                         while (iterator.hasNext()) {
-                            known.remove(iterator.next().getId());
+                            SimpleXid xidToRemove = iterator.next().getId();
+                            Entry knownEntry = known.remove(xidToRemove);
+
+                            if (knownEntry == null) {
+                                Log.log.unknownXidToBeRemovedFromTheKnownTransactionInstances(xidToRemove);
+                            } else {
+                                final Transaction transaction = knownEntry.getTransaction();
+                                if (transaction instanceof ImportedTransaction) {
+                                    try {
+                                        ext.removeImportedTransaction(getXid(transaction));
+                                    } catch (XAException xae) {
+                                        Log.log.cannotRemoveImportedTransaction(xidToRemove, xae);
+                                    }
+                                }
+                            }
+
                             iterator.remove();
                         }
                     }
