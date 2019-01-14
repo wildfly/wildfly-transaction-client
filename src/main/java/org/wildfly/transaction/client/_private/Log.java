@@ -362,6 +362,9 @@ public interface Log extends BasicLogger {
     @Message(id = 90, value = "Cannot assign location \"%s\" to transaction because it is already located at \"%s\"")
     IllegalStateException locationAlreadyInitialized(URI newLocation, URI oldLocation);
 
+    @Message(id = 97, value = "Cannot enlist XA resource '%s' to transaction '%s' as timeout already elapsed")
+    SystemException cannotEnlistToTimeOutTransaction(XAResource xaRes, Transaction transaction);
+
     @LogMessage(level = Logger.Level.WARN)
     @Message(id = 99, value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
     void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
