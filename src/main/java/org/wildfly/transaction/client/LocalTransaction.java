@@ -158,7 +158,8 @@ public final class LocalTransaction extends AbstractTransaction {
 
     public boolean enlistResource(final XAResource xaRes) throws RollbackException, IllegalStateException, SystemException {
         Assert.checkNotNullParam("xaRes", xaRes);
-        final int estimatedRemainingTime = getEstimatedRemainingTime();
+        int estimatedRemainingTime = getEstimatedRemainingTime();
+        if(getTransactionTimeout() == 0) estimatedRemainingTime = Integer.MAX_VALUE;
         if(estimatedRemainingTime == 0) throw Log.log.cannotEnlistToTimeOutTransaction(xaRes, this);
         try {
             xaRes.setTransactionTimeout(estimatedRemainingTime);
