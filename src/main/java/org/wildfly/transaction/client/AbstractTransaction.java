@@ -138,7 +138,7 @@ public abstract class AbstractTransaction implements Transaction {
     public final int getEstimatedRemainingTime() {
         final long elapsed = System.nanoTime() - start;
         final int transactionTimeout = getTransactionTimeout();
-        return transactionTimeout - (int) min((max(elapsed, 0L) + 999_999_999L) / 1_000_000_000L, transactionTimeout);
+        return transactionTimeout - (int) min(max(elapsed, 0L) / 1_000_000_000L, transactionTimeout);
     }
 
     /**
