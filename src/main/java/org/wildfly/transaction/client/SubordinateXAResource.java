@@ -228,6 +228,6 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     int getRemainingTime() {
         long elapsed = max(0L, System.nanoTime() - startTime);
         final int capturedTimeout = this.capturedTimeout;
-        return capturedTimeout - (int) min(capturedTimeout, elapsed / 1_000_000L);
+        return capturedTimeout - (int) min(capturedTimeout, elapsed / 1_000_000_000L);
     }
 }
