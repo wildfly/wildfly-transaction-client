@@ -55,6 +55,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     private final URI location;
     private final SSLContext sslContext;
     private final AuthenticationConfiguration authenticationConfiguration;
+    private final AuthenticationContext authenticationContext;
     private final Endpoint endpoint;
     private final RemotingFallbackPeerProvider fallbackProvider;
     private final Set<Xid> rollbackOnlyXids = new ConcurrentHashMap<Xid, Boolean>().keySet(Boolean.TRUE);
@@ -63,6 +64,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
         this.location = location;
         this.sslContext = sslContext;
         this.authenticationConfiguration = authenticationConfiguration;
+        this.authenticationContext = AuthenticationContext.captureCurrent();
         this.endpoint = endpoint;
         this.fallbackProvider = fallbackProvider;
     }
@@ -71,7 +73,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
         SSLContext finalSslContext;
         if (sslContext == null) {
             try {
-                finalSslContext = CLIENT.getSSLContext(location, AuthenticationContext.captureCurrent(), "jta", "jboss");
+                finalSslContext = CLIENT.getSSLContext(location, authenticationContext, "jta", "jboss");
             } catch (GeneralSecurityException e) {
                 throw new IOException(e);
             }
@@ -80,7 +82,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
         }
         AuthenticationConfiguration finalAuthenticationConfiguration;
         if (authenticationConfiguration == null) {
-            finalAuthenticationConfiguration = CLIENT.getAuthenticationConfiguration(location, AuthenticationContext.captureCurrent(), -1, "jta", "jboss");
+            finalAuthenticationConfiguration = CLIENT.getAuthenticationConfiguration(location, authenticationContext, -1, "jta", "jboss");
         } else {
             finalAuthenticationConfiguration = authenticationConfiguration;
         }
