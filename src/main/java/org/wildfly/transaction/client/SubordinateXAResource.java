@@ -198,7 +198,10 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     public Xid[] recover(final int flag, final String parentName) throws XAException {
-        return getProvider().getPeerHandleForXa(location, null, null).recover(flag, parentName);
+        Xid[] recoveredXids = getProvider().getPeerHandleForXa(location, null, null).recover(flag, parentName);
+        if (recoveredXids.length == 0 && resourceRegistry != null)
+            resourceRegistry.removeResource(this);
+        return recoveredXids;
     }
 
     public boolean isSameRM(final XAResource xaRes) throws XAException {
