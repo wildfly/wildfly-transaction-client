@@ -190,7 +190,11 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     private RemoteTransactionProvider getProvider() {
-        return RemoteTransactionContext.getInstancePrivate().getProvider(location);
+        RemoteTransactionProvider provider = RemoteTransactionContext.getInstancePrivate().getProvider(location);
+        if (provider == null) {
+            throw Log.log.noProviderForUri(location);
+        }
+        return provider;
     }
 
     public Xid[] recover(final int flag) throws XAException {
