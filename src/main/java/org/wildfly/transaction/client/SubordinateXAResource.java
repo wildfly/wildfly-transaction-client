@@ -152,8 +152,6 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
                 resourceRegistry.resourceInDoubt(this);
             throw exception;
         }
-        if (resourceRegistry != null)
-            resourceRegistry.removeResource(this);
         return result;
     }
 
@@ -165,7 +163,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
                 resourceRegistry.resourceInDoubt(this);
             throw exception;
         }
-        if (onePhase && resourceRegistry != null)
+        if (resourceRegistry != null)
             resourceRegistry.removeResource(this);
     }
 
