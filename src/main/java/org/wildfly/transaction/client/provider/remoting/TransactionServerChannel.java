@@ -52,6 +52,7 @@ import org.wildfly.transaction.client.LocalTransactionContext;
 import org.wildfly.transaction.client.RemoteTransactionPermission;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XARecoverable;
+import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 
 /**
@@ -394,11 +395,11 @@ final class TransactionServerChannel {
         securityIdentity.runAsObjIntConsumer((x, i) -> {
             try {
                 final ImportResult<LocalTransaction> importResult = localTransactionContext.findOrImportTransaction(x, 0, true);
-                if (importResult == null) {
-                    writeExceptionResponse(M_RESP_XA_RB_ONLY, i, new XAException(XAException.XAER_NOTA));
-                    return;
+                if (importResult != null) {
+                    importResult.getControl().end(XAResource.TMFAIL);
+                } else {
+                    Log.log.debugf("No transaction associated with xid %s during setRollbackOnly execution", x);
                 }
-                importResult.getControl().end(XAResource.TMFAIL);
                 writeSimpleResponse(M_RESP_XA_RB_ONLY, i);
             } catch (XAException e) {
                 writeExceptionResponse(M_RESP_XA_RB_ONLY, i, e);
