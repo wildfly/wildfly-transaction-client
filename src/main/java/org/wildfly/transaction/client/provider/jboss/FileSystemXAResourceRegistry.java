@@ -312,6 +312,7 @@ final class FileSystemXAResourceRegistry {
                     throw Log.log.readURIFromXAResourceRecoveryFileFailed(uriString, filePath, e);
                 }
                 final XAResource xaresource = reloadInDoubtResource(uri, nodeName);
+                resources.add(xaresource);
                 inDoubtResources.add(xaresource);
                 Log.log.xaResourceRecoveredFromRecoveryRegistry(uri, filePath);
             }
