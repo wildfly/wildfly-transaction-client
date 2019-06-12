@@ -95,7 +95,7 @@ final class TransactionClientChannel implements RemotingOperations {
             final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
@@ -130,7 +130,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
-                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -153,7 +153,7 @@ final class TransactionClientChannel implements RemotingOperations {
             final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
@@ -188,7 +188,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
-                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -210,7 +210,7 @@ final class TransactionClientChannel implements RemotingOperations {
             final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
@@ -245,7 +245,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
-                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -268,7 +268,7 @@ final class TransactionClientChannel implements RemotingOperations {
             final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
@@ -305,7 +305,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
-                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -328,7 +328,7 @@ final class TransactionClientChannel implements RemotingOperations {
             final int peerIdentityId = peerIdentity.getId();
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
@@ -363,7 +363,7 @@ final class TransactionClientChannel implements RemotingOperations {
                     throw Log.log.unrecognizedParameter(XAException.XAER_RMFAIL, id);
                 }
             } catch (IOException e) {
-                throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+                throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -386,7 +386,7 @@ final class TransactionClientChannel implements RemotingOperations {
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
             if (onePhase) Protocol.writeParam(Protocol.P_ONE_PHASE, os);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         try (BlockingInvocation.Response response = invocation.getResponse()) {
             try (MessageInputStream is = response.getInputStream()) {
@@ -447,7 +447,7 @@ final class TransactionClientChannel implements RemotingOperations {
             if (peerIdentityId != 0) Protocol.writeParam(Protocol.P_SEC_CONTEXT, os, peerIdentityId, Protocol.UNSIGNED);
             Protocol.writeParam(Protocol.P_PARENT_NAME, os, parentName);
         } catch (IOException e) {
-            throw Log.log.failedToSendXA(e, XAException.XAER_RMERR);
+            throw Log.log.failedToSendXA(e, XAException.XAER_RMFAIL);
         }
         final ArrayList<Xid> recoveryList = new ArrayList<>();
         try (BlockingInvocation.Response response = invocation.getResponse()) {
@@ -495,7 +495,7 @@ final class TransactionClientChannel implements RemotingOperations {
             Thread.currentThread().interrupt();
             throw Log.log.interruptedXA(XAException.XAER_RMERR);
         } catch (IOException e) {
-            throw Log.log.responseFailedXa(e, XAException.XAER_RMERR);
+            throw Log.log.responseFailedXa(e, XAException.XAER_RMFAIL);
         }
     }
 
