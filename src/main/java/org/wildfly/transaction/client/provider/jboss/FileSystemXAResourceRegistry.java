@@ -17,19 +17,6 @@
  */
 package org.wildfly.transaction.client.provider.jboss;
 
-import static java.security.AccessController.doPrivileged;
-
-import org.wildfly.common.annotation.NotNull;
-import org.wildfly.transaction.client.LocalTransaction;
-import org.wildfly.transaction.client.SimpleXid;
-import org.wildfly.transaction.client.XAResourceRegistry;
-import org.wildfly.transaction.client._private.Log;
-import org.wildfly.transaction.client.spi.LocalTransactionProvider;
-
-import javax.transaction.SystemException;
-import javax.transaction.xa.XAException;
-import javax.transaction.xa.XAResource;
-import javax.transaction.xa.Xid;
 import java.io.File;
 import java.io.FilePermission;
 import java.io.IOException;
@@ -48,6 +35,19 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.transaction.SystemException;
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
+
+import org.wildfly.common.annotation.NotNull;
+import org.wildfly.transaction.client.LocalTransaction;
+import org.wildfly.transaction.client.SimpleXid;
+import org.wildfly.transaction.client.XAResourceRegistry;
+import org.wildfly.transaction.client._private.Log;
+import org.wildfly.transaction.client.spi.LocalTransactionProvider;
+
+import static java.security.AccessController.doPrivileged;
 
 /**
  * A registry persisted in a series of log files, containing all outflowed resources info for unfinished transactions.
@@ -288,7 +288,7 @@ final class FileSystemXAResourceRegistry {
                             fileChannel.close();
                         }
                         Files.delete(filePath);
-                        openFilePaths.remove(filePath.toString());
+                        openFilePaths.remove(filePath.getFileName().toString());
                     } catch (IOException e) {
                         throw Log.log.deleteXAResourceRecoveryFileFailed(XAException.XAER_RMERR, filePath, resource, e);
                     }
