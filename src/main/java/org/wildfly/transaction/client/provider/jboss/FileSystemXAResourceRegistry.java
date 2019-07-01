@@ -42,7 +42,6 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
@@ -62,7 +61,6 @@ import java.util.Set;
  */
 final class FileSystemXAResourceRegistry {
 
-    private static final FilePermission FILE_PERMISSION = new FilePermission("<<ALL FILES>>", "read,write");
     /**
      * Name of recovery dir. Location of this dir can be defined at constructor.
      */
@@ -88,6 +86,8 @@ final class FileSystemXAResourceRegistry {
      */
     private final Path xaRecoveryPath;
 
+    private final FilePermission xaRecoveryDirPermission;
+
     /**
      * A set containing the list of all registry files that are currently open. Used as a support to
      * identify in doubt registries. See {@link #recoverInDoubtRegistries}.
@@ -108,10 +108,12 @@ final class FileSystemXAResourceRegistry {
      */
     FileSystemXAResourceRegistry (LocalTransactionProvider provider, Path relativePath) {
         this.provider = provider;
-        if (relativePath == null)
-             this.xaRecoveryPath = FileSystems.getDefault().getPath(RECOVERY_DIR);
-        else
+        if (relativePath == null) {
+            this.xaRecoveryPath = FileSystems.getDefault().getPath(RECOVERY_DIR);
+        } else {
             this.xaRecoveryPath = relativePath.resolve(RECOVERY_DIR);
+        }
+        xaRecoveryDirPermission = new FilePermission(xaRecoveryPath.toString() + File.separatorChar + '*', "read,write");
     }
 
     /**
@@ -214,12 +216,12 @@ final class FileSystemXAResourceRegistry {
             
             final String xidString = SimpleXid.of(xid).toHexString('_');
             this.filePath = xaRecoveryPath.resolve(xidString);
-            
+
             try {
                 fileChannel = doPrivileged((PrivilegedExceptionAction<FileChannel>) () -> {
                     final SecurityManager sm = System.getSecurityManager();
-                    if(sm != null) {
-                        sm.checkPermission(FILE_PERMISSION);
+                    if (sm != null) {
+                        sm.checkPermission(xaRecoveryDirPermission);
                     }
                     xaRecoveryPath.toFile().mkdir(); // create dir if non existent
                     return FileChannel.open(filePath, StandardOpenOption.APPEND, StandardOpenOption.CREATE_NEW);
