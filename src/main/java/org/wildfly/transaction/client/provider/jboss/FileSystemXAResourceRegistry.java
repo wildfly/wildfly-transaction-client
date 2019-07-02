@@ -241,13 +241,13 @@ final class FileSystemXAResourceRegistry {
          * fully prepared. In this case, any lines in the registry can correspond to in doubt outflowed
          * resources. The goal is to reload those resources so they can be recovered.
          *
-         * @param inDoubtFilePath the file path of the in doubt registry
-         * @throws IOException if there is an I/O error when realoding the registry file
+         * @param inDoubtFileName the file name of the in doubt registry
+         * @throws IOException if there is an I/O error when reloading the registry file
          */
-        private XAResourceRegistryFile(String inDoubtFilePath, LocalTransactionProvider provider) throws IOException {
-            this.filePath = xaRecoveryPath.resolve(inDoubtFilePath);
+        private XAResourceRegistryFile(String inDoubtFileName, LocalTransactionProvider provider) throws IOException {
+            this.filePath = xaRecoveryPath.resolve(inDoubtFileName);
             this.fileChannel = null; // no need to open file channel here
-            openFilePaths.add(inDoubtFilePath);
+            openFilePaths.add(inDoubtFileName);
             loadInDoubtResources(provider.getNodeName());
             Log.log.xaResourceRecoveryRegistryReloaded(filePath);
         }
