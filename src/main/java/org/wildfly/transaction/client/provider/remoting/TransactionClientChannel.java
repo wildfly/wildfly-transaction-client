@@ -434,7 +434,7 @@ final class TransactionClientChannel implements RemotingOperations {
 
     @NotNull
     public Xid[] recover(final int flag, final String parentName, final ConnectionPeerIdentity peerIdentity) throws XAException {
-        if (flag != XAResource.TMSTARTRSCAN) {
+        if ((flag & XAResource.TMSTARTRSCAN) != XAResource.TMSTARTRSCAN) {
             return SimpleXid.NO_XIDS;
         }
         final InvocationTracker invocationTracker = getInvocationTracker();
