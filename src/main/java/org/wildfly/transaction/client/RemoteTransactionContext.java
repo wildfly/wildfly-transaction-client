@@ -62,19 +62,10 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
      * @param classLoader the class loader to scan for transaction providers ({@code null} indicates the application or bootstrap class loader)
      */
     public RemoteTransactionContext(final ClassLoader classLoader) {
-        this(doPrivileged((PrivilegedAction<List<RemoteTransactionProvider>>) () -> {
-            final ServiceLoader<RemoteTransactionProvider> loader = ServiceLoader.load(RemoteTransactionProvider.class, classLoader);
-            final ArrayList<RemoteTransactionProvider> providers = new ArrayList<RemoteTransactionProvider>();
-            final Iterator<RemoteTransactionProvider> iterator = loader.iterator();
-            for (;;) try {
-                if (! iterator.hasNext()) break;
-                providers.add(iterator.next());
-            } catch (ServiceConfigurationError e) {
-                Log.log.serviceConfigurationFailed(e);
-            }
-            providers.trimToSize();
-            return providers;
-        }), false);
+        this(System.getSecurityManager() == null? getProviders(classLoader):
+                doPrivileged((PrivilegedAction<List<RemoteTransactionProvider>>) () -> {
+                    return getProviders(classLoader);
+                }), false);
     }
 
     /**
@@ -95,6 +86,20 @@ public final class RemoteTransactionContext implements Contextual<RemoteTransact
             }
         }
         return transaction;
+    }
+
+    private static List<RemoteTransactionProvider> getProviders(ClassLoader classLoader) {
+        final ServiceLoader<RemoteTransactionProvider> loader = ServiceLoader.load(RemoteTransactionProvider.class, classLoader);
+        final ArrayList<RemoteTransactionProvider> providers = new ArrayList<RemoteTransactionProvider>();
+        final Iterator<RemoteTransactionProvider> iterator = loader.iterator();
+        for (;;) try {
+            if (! iterator.hasNext()) break;
+            providers.add(iterator.next());
+        } catch (ServiceConfigurationError e) {
+            Log.log.serviceConfigurationFailed(e);
+        }
+        providers.trimToSize();
+        return providers;
     }
 
     /**
