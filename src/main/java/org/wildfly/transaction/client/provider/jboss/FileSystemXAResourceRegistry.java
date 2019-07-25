@@ -72,7 +72,7 @@ final class FileSystemXAResourceRegistry {
     private static final XAResource[] EMPTY_IN_DOUBT_RESOURCES = new XAResource[0];
 
     /**
-     * Key for keeeping the xa resource registry associated with a local transaction
+     * Key for keeping the xa resource registry associated with a local transaction
      */
     private static final Object XA_RESOURCE_REGISTRY_KEY = new Object();
 
@@ -86,6 +86,9 @@ final class FileSystemXAResourceRegistry {
      */
     private final Path xaRecoveryPath;
 
+    /**
+     * Permission for writing and reading the xa recovery dir.
+     */
     private final FilePermission xaRecoveryDirPermission;
 
     /**
@@ -153,8 +156,7 @@ final class FileSystemXAResourceRegistry {
         } catch (IOException e) {
             throw Log.log.unexpectedExceptionOnXAResourceRecovery(e);
         }
-        return inDoubtResources.isEmpty() ? EMPTY_IN_DOUBT_RESOURCES : inDoubtResources.toArray(
-                    new XAResource[inDoubtResources.size()]);
+        return inDoubtResources.isEmpty() ? EMPTY_IN_DOUBT_RESOURCES : inDoubtResources.toArray(new XAResource[0]);
     }
 
     /**
@@ -218,14 +220,14 @@ final class FileSystemXAResourceRegistry {
             this.filePath = xaRecoveryPath.resolve(xidString);
 
             try {
-                fileChannel = doPrivileged((PrivilegedExceptionAction<FileChannel>) () -> {
-                    final SecurityManager sm = System.getSecurityManager();
-                    if (sm != null) {
+                final SecurityManager sm = System.getSecurityManager();
+                if (sm == null)
+                    fileChannel = openRecoveryFile();
+                else
+                    fileChannel = doPrivileged((PrivilegedExceptionAction<FileChannel>) () -> {
                         sm.checkPermission(xaRecoveryDirPermission);
-                    }
-                    xaRecoveryPath.toFile().mkdir(); // create dir if non existent
-                    return FileChannel.open(filePath, StandardOpenOption.APPEND, StandardOpenOption.CREATE_NEW);
-                });
+                        return openRecoveryFile();
+                    });
                 openFilePaths.add(xidString);
                 fileChannel.lock();
                 Log.log.xaResourceRecoveryFileCreated(filePath);
@@ -305,6 +307,17 @@ final class FileSystemXAResourceRegistry {
         @Override
         protected void resourceInDoubt(XAResource resource) {
             inDoubtResources.add(resource);
+        }
+
+        /**
+         * Opens the {@link #filePath recovery file}.
+         *
+         * @return the fileChannel
+         * @throws IOException if an IO error occurs during file creation and opening
+         */
+        private FileChannel openRecoveryFile() throws IOException {
+            xaRecoveryPath.toFile().mkdir(); // create dir if non existent
+            return FileChannel.open(filePath, StandardOpenOption.APPEND, StandardOpenOption.CREATE_NEW);
         }
 
         /**
