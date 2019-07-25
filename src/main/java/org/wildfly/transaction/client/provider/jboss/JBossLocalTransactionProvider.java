@@ -200,7 +200,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             return entry;
         }
         final XidKey xidKey;
-        synchronized (ENTRY_KEY) {
+        synchronized (transaction) {
             entry = (Entry) getResource(transaction, ENTRY_KEY);
             if (entry != null) {
                 return entry;
