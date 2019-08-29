@@ -166,7 +166,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
         try {
             if (commitToEnlistment()) lookup(xid).commit(onePhase);
         } catch (XAException | RuntimeException exception) {
-            if (onePhase && resourceRegistry != null)
+            if (resourceRegistry != null)
                 resourceRegistry.resourceInDoubt(this);
             throw exception;
         }
