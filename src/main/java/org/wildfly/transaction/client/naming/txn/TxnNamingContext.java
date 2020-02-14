@@ -18,7 +18,6 @@
 package org.wildfly.transaction.client.naming.txn;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import javax.naming.Binding;
 import javax.naming.Name;
@@ -63,11 +62,7 @@ class TxnNamingContext extends AbstractContext {
         final String str = name.get(0);
         switch (str) {
             case USER_TRANSACTION: {
-                if (namingProvider != null) {
-                    return remoteUserTransaction;
-                } else {
-                    return LocalUserTransaction.getInstance();
-                }
+                return remoteUserTransaction;
             }
             case REMOTE_USER_TRANSACTION: {
                 return remoteUserTransaction;
@@ -116,7 +111,7 @@ class TxnNamingContext extends AbstractContext {
         }
         return CloseableNamingEnumeration.fromIterable(
             Arrays.asList(
-                binding(UserTransaction.class, namingProvider != null ? remoteUserTransaction : LocalUserTransaction.getInstance()),
+                binding(UserTransaction.class, remoteUserTransaction),
                 binding(RemoteUserTransaction.class, remoteUserTransaction),
                 binding(LocalUserTransaction.class, LocalUserTransaction.getInstance()),
                 binding(TransactionManager.class, ContextTransactionManager.getInstance()),
