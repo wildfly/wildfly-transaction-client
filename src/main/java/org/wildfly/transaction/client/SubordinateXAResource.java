@@ -211,7 +211,7 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     public Xid[] recover(final int flag, final String parentName) throws XAException {
         Xid[] recoveredXids = getRemoteTransactionPeer().recover(flag, parentName);
-        if ((flag & (XAResource.TMSTARTRSCAN | XAResource.TMENDRSCAN)) > 0 && recoveredXids.length == 0 && resourceRegistry != null)
+        if ((flag & XAResource.TMSTARTRSCAN) == XAResource.TMSTARTRSCAN && recoveredXids.length == 0 && resourceRegistry != null)
             resourceRegistry.removeResource(this);
         return recoveredXids;
     }
