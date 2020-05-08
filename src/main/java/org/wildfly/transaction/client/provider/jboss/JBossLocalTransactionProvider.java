@@ -372,7 +372,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                 // can't determine status; fall out
             }
             if (! (transaction instanceof ImportedTransaction)) {
-                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+                Log.log.notImportedXa();
+                return;
             }
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             if (importedTransaction.activated()) try {
@@ -407,7 +408,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                 // can't determine status; fall out
             }
             if (! (transaction instanceof ImportedTransaction)) {
-                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+                Log.log.notImportedXa();
+                return;
             }
             try {
                 transaction.setRollbackOnly();
@@ -421,7 +423,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         public void beforeCompletion() throws XAException {
             final Transaction transaction = this.transaction;
             if (! (transaction instanceof ImportedTransaction)) {
-                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+                Log.log.notImportedXa();
+                return;
             }
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
@@ -438,7 +441,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         public int prepare() throws XAException {
             final Transaction transaction = this.transaction;
             if (! (transaction instanceof ImportedTransaction)) {
-                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+                Log.log.notImportedXa();
+                return XAResource.XA_OK;
             }
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             final int tpo = importedTransaction.doPrepare();
@@ -477,7 +481,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         public void forget() throws XAException {
             final Transaction transaction = this.transaction;
             if (! (transaction instanceof ImportedTransaction)) {
-                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+                Log.log.notImportedXa();
+                return;
             }
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
@@ -492,7 +497,8 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         public void commit(final boolean onePhase) throws XAException {
             final Transaction transaction = this.transaction;
             if (! (transaction instanceof ImportedTransaction)) {
-                throw Log.log.notImportedXa(XAException.XAER_NOTA);
+                Log.log.notImportedXa();
+                return;
             }
             final ImportedTransaction importedTransaction = (ImportedTransaction) transaction;
             try {
