@@ -61,6 +61,9 @@ public interface Log extends BasicLogger {
     @Message(value = "Subordinate XAResource at %s")
     String subordinateXaResource(URI location);
 
+    @Message(value = "Failed to add XAResource %s with Xid %s pointing to location %s to XAResourceRegistry")
+    String failedToAddXAResourceToRegistry(XAResource xaResource, Xid xid, URI location);
+
     // Debug
 
     @LogMessage(level = Logger.Level.DEBUG)
@@ -414,4 +417,11 @@ public interface Log extends BasicLogger {
     @LogMessage(level = Logger.Level.WARN)
     @Message(id = 99, value = "Error while removing imported transaction of xid %s from the underlying transaction manager")
     void cannotRemoveImportedTransaction(Xid xid, @Cause XAException e);
+
+    @Message(id = 100, value = "String '%s' has a wrong format to be decoded to SimpleXid. Expected the hexadecimal " +
+        "format separated by '%s' to exactly three parts.")
+    IllegalStateException failToConvertHexadecimalFormatToSimpleXid(String stringToConvert, String separator);
+
+    @Message(id = 101, value = "Failed to read Xid '%s' from xa resource recovery file %s")
+    IOException readXidFromXAResourceRecoveryFileFailed(String xidString, Path filePath, @Cause Exception e);
 }

@@ -66,8 +66,9 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
         this.authenticationContext = AuthenticationContext.captureCurrent();
     }
 
-    SubordinateXAResource(final URI location, final String parentName, final int flags, XAResourceRegistry recoveryRegistry) {
+    SubordinateXAResource(final URI location, final String parentName, Xid xid, final int flags, XAResourceRegistry recoveryRegistry) {
         this(location, parentName, recoveryRegistry);
+        this.xid = xid;
         stateRef.set(flags);
     }
 
@@ -138,6 +139,16 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
         capturedTimeout = timeout;
         lookup(xid);
         this.xid = xid;
+        if (resourceRegistry != null) {
+            try {
+                resourceRegistry.addResource(this, xid, location);
+            } catch (SystemException se) {
+                XAException xaException = new XAException(Log.log.failedToAddXAResourceToRegistry(this, xid, location));
+                xaException.errorCode = XAException.XAER_RMERR;
+                xaException.addSuppressed(se);
+                throw xaException;
+            }
+        }
     }
 
     public void end(final Xid xid, final int flags) throws XAException {
@@ -173,8 +184,21 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
                 resourceRegistry.resourceInDoubt(this);
             throw exception;
         }
-        if (resourceRegistry != null)
+        if (resourceRegistry != null) {
             resourceRegistry.removeResource(this);
+        } else {
+            // deserialized SubordinateXAResources created by Narayana recovery from the SerializedXAResource
+            // as the registry was not assigned trying to find matching resource in registry
+            // for being able to clean the Xid from registry immediately now after the commit
+            for (XAResource xares : XAResourceRegistryProviderHolder.getInstance().getInDoubtXAResources()) {
+                if (xares instanceof SubordinateXAResource) {
+                    SubordinateXAResource subordinateXares = (SubordinateXAResource) xares;
+                    if (SimpleXid.of(xid).equals(SimpleXid.of(subordinateXares.xid))) {
+                        subordinateXares.resourceRegistry.removeResource(subordinateXares);
+                    }
+                }
+            }
+        }
     }
 
     public void rollback(final Xid xid) throws XAException {

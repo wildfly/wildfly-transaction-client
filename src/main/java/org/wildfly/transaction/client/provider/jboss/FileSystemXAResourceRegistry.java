@@ -33,6 +33,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import javax.transaction.SystemException;
@@ -44,6 +45,7 @@ import org.wildfly.common.annotation.NotNull;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.XAResourceRegistry;
+import org.wildfly.transaction.client.XAResourceRegistryProvider;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.LocalTransactionProvider;
 
@@ -261,16 +263,20 @@ final class FileSystemXAResourceRegistry {
          * {@inheritDoc}
          */
         @Override
-        protected void addResource(XAResource resource, URI uri) throws SystemException {
+        protected void addResource(XAResource resource, Xid xid, URI uri) throws SystemException {
             assert fileChannel != null;
+            if (!this.resources.add(resource)) return; // trying to add a duplication
             try {
                 assert fileChannel.isOpen();
-                fileChannel.write(ByteBuffer.wrap((uri.toString() + System.lineSeparator()).getBytes(StandardCharsets.UTF_8)));
+                String record = new StringBuilder()
+                        .append(uri.toString()).append(System.lineSeparator())
+                        .append(SimpleXid.of(xid).toHexString()).append(System.lineSeparator())
+                        .toString();
+                fileChannel.write(ByteBuffer.wrap((record).getBytes(StandardCharsets.UTF_8)));
                 fileChannel.force(true);
             } catch (IOException e) {
                 throw Log.log.appendXAResourceRecoveryFileFailed(uri, filePath, e);
             }
-            this.resources.add(resource);
             Log.log.xaResourceAddedToRecoveryRegistry(uri, filePath);
         }
 
@@ -327,23 +333,40 @@ final class FileSystemXAResourceRegistry {
          */
         private void loadInDoubtResources(String nodeName) throws IOException {
             assert fileChannel == null;
-            final List<String> uris;
+            final List<String> lines;
             try {
-                uris = Files.readAllLines(filePath);
+                lines = Files.readAllLines(filePath);
             } catch (IOException e) {
                 throw Log.log.readXAResourceRecoveryFileFailed(filePath, e);
             }
-            for (String uriString : uris) {
+            Iterator<String> linesIterator = lines.iterator();
+            while(linesIterator.hasNext()) {
+                String line = linesIterator.next();
                 // adding a line separator at the end of each uri entry results in an extra empty line
-                if (uriString.isEmpty())
-                    continue;
+                // the end of the file means empty line and then no more record (no has next)
+                if (line.isEmpty() && !linesIterator.hasNext()) {
+                    break;
+                }
+                // record consists from two lines, first line is URI
                 final URI uri;
                 try {
-                    uri = new URI(uriString);
+                    uri = new URI(line);
                 } catch (URISyntaxException e) {
-                    throw Log.log.readURIFromXAResourceRecoveryFileFailed(uriString, filePath, e);
+                    throw Log.log.readURIFromXAResourceRecoveryFileFailed(line, filePath, e);
                 }
-                final XAResource xaresource = reloadInDoubtResource(uri, nodeName);
+                // the second line is Xid
+                Xid xid = null;
+                if(linesIterator.hasNext()) {
+                    line = linesIterator.next(); // line separator could lead to empty line
+                    if (line.isEmpty() && linesIterator.hasNext()) line = linesIterator.next();
+                    try {
+                        xid = SimpleXid.of(line);
+                    } catch (Exception e) {
+                        throw Log.log.readXidFromXAResourceRecoveryFileFailed(line, filePath, e);
+                    }
+                }
+
+                final XAResource xaresource = reloadInDoubtResource(uri, nodeName, xid);
                 resources.add(xaresource);
                 inDoubtResources.add(xaresource);
                 Log.log.xaResourceRecoveredFromRecoveryRegistry(uri, filePath);
