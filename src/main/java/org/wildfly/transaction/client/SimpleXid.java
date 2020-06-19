@@ -18,9 +18,14 @@
 
 package org.wildfly.transaction.client;
 
+import org.wildfly.transaction.client._private.Log;
+
 import static java.lang.Integer.signum;
 import static java.lang.Math.min;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 import javax.transaction.xa.Xid;
@@ -51,6 +56,8 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
      * A completely empty {@code SimpleXid}, which sorts below all other {@code SimpleXid} instances.
      */
     public static final SimpleXid EMPTY = new SimpleXid(0, NO_BYTES, NO_BYTES, false);
+
+    private static final char DEFAULT_SEPARATOR = ':';
 
     private final int formatId;
     private final byte[] globalId;
@@ -108,6 +115,16 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
         return xid instanceof SimpleXid ? (SimpleXid) xid : new SimpleXid(xid.getFormatId(), xid.getGlobalTransactionId(), xid.getBranchQualifier());
     }
 
+    public static SimpleXid of(final String xidHexString, char separator) {
+        String[] xidParts = xidHexString.split(String.valueOf(separator));
+        if (xidParts.length != 3) throw Log.log.failToConvertHexadecimalFormatToSimpleXid(xidHexString, String.valueOf(separator));
+        return new SimpleXid(Integer.parseUnsignedInt(xidParts[0],16), hexStringToByteArray(xidParts[1]), hexStringToByteArray(xidParts[2]));
+    }
+
+    public static SimpleXid of(final String xidHexString) {
+        return SimpleXid.of(xidHexString, DEFAULT_SEPARATOR);
+    }
+
     public int compareTo(final SimpleXid o) {
         int res = signum(formatId - o.formatId);
         if (res == 0) res = compareByteArrays(globalId, o.globalId);
@@ -117,7 +134,7 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
     }
 
     public String toHexString() {
-        return toHexString(':');
+        return toHexString(DEFAULT_SEPARATOR);
     }
 
     public String toHexString(char separator) {
@@ -157,10 +174,20 @@ public final class SimpleXid implements Xid, Comparable<SimpleXid> {
         return signum(l1 - l2);
     }
 
+    private static byte[] hexStringToByteArray(String s) {
+        int len = s.length();
+        byte[] data = new byte[len/2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                    + Character.digit(s.charAt(i+1), 16));
+        }
+        return data;
+    }
+
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("XID [");
-        toHexString(b, ':');
+        toHexString(b, DEFAULT_SEPARATOR);
         b.append(']');
         return b.toString();
     }
