@@ -21,6 +21,7 @@ package org.wildfly.transaction.client;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 import java.net.URI;
 
 import static org.wildfly.transaction.client.OutflowHandleManager.FL_COMMITTED;
@@ -42,7 +43,7 @@ public abstract class XAResourceRegistry {
      * @param uri the resource URI location
      * @throws SystemException if there is a problem recording this resource
      */
-    protected abstract void addResource(XAResource resource, URI uri) throws SystemException;
+    protected abstract void addResource(XAResource resource, Xid xid, URI uri) throws SystemException;
 
     /**
      * Removes a XA resource from this registry.
@@ -69,7 +70,7 @@ public abstract class XAResourceRegistry {
      * @param nodeName the node name of the resource
      * @return         a newly-created resource representing a previously lost XA resource that is in doubt
      */
-    protected XAResource reloadInDoubtResource(URI uri, String nodeName) {
-        return new SubordinateXAResource(uri, nodeName, FL_COMMITTED | FL_CONFIRMED, this);
+    protected XAResource reloadInDoubtResource(URI uri, String nodeName, Xid xid) {
+        return new SubordinateXAResource(uri, nodeName, xid, FL_COMMITTED | FL_CONFIRMED, this);
     }
 }
