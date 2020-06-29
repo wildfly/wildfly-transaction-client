@@ -112,10 +112,6 @@ public interface Log extends BasicLogger {
     @Message(value = "Unknown xid %s to be removed from the instances known to the wfly txn client")
     void unknownXidToBeRemovedFromTheKnownTransactionInstances(Xid xid);
 
-    @LogMessage(level = Logger.Level.WARN)
-    @Message(value = "Operation not allowed on non-imported transaction")
-    void notImportedXa();
-
     // Regular messages
 
     @Message(id = 0, value = "No transaction associated with the current thread")
@@ -358,6 +354,9 @@ public interface Log extends BasicLogger {
 
     @Message(id = 79, value = "An unexpected resource manager error occurred")
     XAException resourceManagerErrorXa(@Field int errorCode, @Cause Throwable cause);
+
+    @Message(id = 80, value = "Operation not allowed on non-imported transaction")
+    XAException notImportedXa(@Field int errorCode);
 
     @Message(id = 81, value = "Invalid transaction state for operation")
     XAException invalidTxStateXa(@Field int errorCode);
