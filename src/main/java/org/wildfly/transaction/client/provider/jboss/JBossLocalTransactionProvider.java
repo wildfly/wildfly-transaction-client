@@ -182,6 +182,20 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
     }
 
+    public void dropRemote(@NotNull final Transaction transaction) {
+        final Xid xid = getXid(transaction);
+        final SimpleXid gtid = SimpleXid.of(xid).withoutBranch();
+        final Entry entry = known.get(gtid);
+        if (entry != null) {
+            final XidKey oldXidKey = entry.getXidKey();
+            // redefinition of time when memory mapping is cleaned from the transaction with remote enlistment
+            // the transaction with remote enlistment will be removed from when stale txn time elapsed
+            final XidKey newXidKey = new XidKey(gtid, getTimeTick() + staleTransactionTime * 1_000_000_000L);
+            timeoutSet.add(newXidKey);
+            timeoutSet.remove(oldXidKey);
+        }
+    }
+
     public abstract int getTimeout(@NotNull Transaction transaction);
 
     @NotNull

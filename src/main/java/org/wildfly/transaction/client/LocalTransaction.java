@@ -62,6 +62,9 @@ public final class LocalTransaction extends AbstractTransaction {
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
                 // we can drop the mapping, since we are both a master and have no enlisted subordinates
                 owner.getProvider().dropLocal(transaction);
+            } else {
+                // the memory mapping of transaction with subordinate enlistment may need to be adjusted
+                owner.getProvider().dropRemote(transaction);
             }
         }
     }
@@ -81,6 +84,9 @@ public final class LocalTransaction extends AbstractTransaction {
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
                 // we can drop the mapping, since we are both a master and have no enlisted subordinates
                 owner.getProvider().dropLocal(transaction);
+            } else {
+                // the memory mapping of transaction with subordinate enlistment may need to be adjusted
+                owner.getProvider().dropRemote(transaction);
             }
         }
     }
@@ -96,6 +102,9 @@ public final class LocalTransaction extends AbstractTransaction {
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
                 // we can drop the mapping, since we are both a master and have no enlisted subordinates
                 owner.getProvider().dropLocal(transaction);
+            } else {
+                // the memory mapping of transaction with subordinate enlistment may need to be adjusted
+                owner.getProvider().dropRemote(transaction);
             }
         }
     }
@@ -112,6 +121,9 @@ public final class LocalTransaction extends AbstractTransaction {
             if (outflowedResources == null || outflowedResources.getEnlistedSubordinates() == 0) {
                 // we can drop the mapping, since we are both a master and have no enlisted subordinates
                 owner.getProvider().dropLocal(transaction);
+            } else {
+                // the memory mapping of transaction with subordinate enlistment may need to be adjusted
+                owner.getProvider().dropRemote(transaction);
             }
         }
     }
