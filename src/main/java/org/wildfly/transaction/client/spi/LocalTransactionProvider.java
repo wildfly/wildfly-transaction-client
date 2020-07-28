@@ -175,6 +175,18 @@ public interface LocalTransactionProvider extends TransactionProvider {
     void dropLocal(@NotNull Transaction transaction);
 
     /**
+     * The transaction is expected to work with outflowed resources - it contains a remote subordinate enlistment.
+     * We can't use the {@link #dropLocal(Transaction)} directly as the the transaction may reapear
+     * on this node during recovery.
+     *
+     * But this method gives a chance to the provider to reassign the removal timeout or some other work
+     * that needs to be done in case the in-flight transaction finished.
+     *
+     * @param transaction the transaction with ouflowed resources to announce of being finished (not {@code null})
+     */
+    void dropRemote(@NotNull Transaction transaction);
+
+    /**
      * Get the configured timeout of the given transaction (not the remaining time).
      *
      * @param transaction the transaction (not {@code null})
@@ -350,6 +362,10 @@ public interface LocalTransactionProvider extends TransactionProvider {
         }
 
         public void dropLocal(@NotNull final Transaction transaction) {
+            // no operation
+        }
+
+        public void dropRemote(@NotNull final Transaction transaction) {
             // no operation
         }
 
