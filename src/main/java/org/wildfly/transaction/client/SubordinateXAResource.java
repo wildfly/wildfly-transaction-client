@@ -23,11 +23,14 @@ import static java.lang.Math.min;
 
 import java.io.Serializable;
 import java.net.URI;
+import java.security.GeneralSecurityException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.net.ssl.SSLContext;
 import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
@@ -36,7 +39,9 @@ import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.wildfly.transaction.client._private.Log;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
@@ -242,7 +247,25 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
 
     private RemoteTransactionPeer getRemoteTransactionPeer() throws XAException {
         try {
-            return authenticationContext.run((PrivilegedExceptionAction<RemoteTransactionPeer>) () -> getProvider().getPeerHandleForXa(location, null, null));
+            final AuthenticationContextConfigurationClient client = new AuthenticationContextConfigurationClient();
+            final AuthenticationConfiguration configuration = client.getAuthenticationConfiguration(location, this.authenticationContext);
+            SSLContext context = null;
+            try {
+                context = client.getSSLContext(location, this.authenticationContext);
+            } catch (GeneralSecurityException ex) {
+                // no-op, no changes to context
+            }
+
+            if (context == null) {
+                try {
+                    context = SSLContext.getDefault();
+                } catch (GeneralSecurityException ex) {
+                    // no-op, no changes to context
+                }
+            }
+
+            final RemoteTransactionPeer provider = getProvider().getPeerHandleForXa(location, context, configuration);
+            return authenticationContext.run((PrivilegedExceptionAction<RemoteTransactionPeer>) () -> provider);
         } catch (PrivilegedActionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof XAException) {
