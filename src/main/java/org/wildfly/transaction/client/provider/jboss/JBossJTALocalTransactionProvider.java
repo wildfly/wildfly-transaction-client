@@ -141,7 +141,11 @@ final class JBossJTALocalTransactionProvider extends JBossLocalTransactionProvid
         if (transaction instanceof TransactionImple) {
             return ((TransactionImple) transaction).getTxId();
         } else {
-            throw Log.log.unknownTransactionType(TransactionImple.class, transaction.getClass());
+            if (transaction == null) {
+                throw Log.log.providerCreatedNullTransaction();
+            } else {
+                throw Log.log.unknownTransactionType(TransactionImple.class, transaction.getClass());
+            }
         }
     }
 
