@@ -217,7 +217,7 @@ public interface Log extends BasicLogger {
     IllegalStateException multipleProvidersRegistered(Endpoint e);
 
     @Message(id = 34, value = "Failed to acquire a connection for this operation")
-    XAException failedToAcquireConnectionXA(@Cause IOException e, @Field int errorCode);
+    XAException failedToAcquireConnectionXA(@Cause Throwable e, @Field int errorCode);
 
     @Message(id = 35, value = "Invalid handle type requested; expected a subtype of Transaction (non-inclusive), got %s")
     IllegalArgumentException invalidHandleTypeRequested(Class<?> type);
