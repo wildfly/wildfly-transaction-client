@@ -25,6 +25,7 @@ import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CancellationException;
 
 import javax.net.ssl.SSLContext;
 import javax.transaction.SystemException;
