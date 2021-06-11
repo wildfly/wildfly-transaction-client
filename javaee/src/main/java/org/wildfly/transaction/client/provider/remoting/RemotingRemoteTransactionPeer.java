@@ -86,7 +86,11 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
         } else {
             finalAuthenticationConfiguration = authenticationConfiguration;
         }
-        return endpoint.getConnectedIdentity(location, finalSslContext, finalAuthenticationConfiguration).get();
+        try {
+            return endpoint.getConnectedIdentity(location, finalSslContext, finalAuthenticationConfiguration).get();
+        } catch (CancellationException e) {
+            throw new IOException(e);
+        }
     }
 
     ConnectionPeerIdentity getPeerIdentityXA() throws XAException {
