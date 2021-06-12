@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.net.ssl.SSLContext;
@@ -92,7 +93,7 @@ class RemotingRemoteTransactionPeer implements RemoteTransactionPeer {
     ConnectionPeerIdentity getPeerIdentityXA() throws XAException {
         try {
             return getPeerIdentity();
-        } catch (IOException e) {
+        } catch (IOException | CancellationException e) {
             throw Log.log.failedToAcquireConnectionXA(e, XAException.XAER_RMFAIL);
         }
     }
