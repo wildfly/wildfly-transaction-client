@@ -515,6 +515,10 @@ final class TransactionClientChannel implements RemotingOperations {
         return channel.getConnection();
     }
 
+    void notifyTransactionEnd(final int id){
+        peerTransactionMap.removeKey(id);
+    }
+
     class ReceiverImpl implements Channel.Receiver {
         public void handleError(final Channel channel, final IOException error) {
             handleEnd(channel);
