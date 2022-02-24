@@ -69,6 +69,7 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
             final int oldVal = statusRef.get();
             if (oldVal == Status.STATUS_ACTIVE || oldVal == Status.STATUS_MARKED_ROLLBACK) {
                 statusRef.set(Status.STATUS_ROLLEDBACK);
+                channel.notifyTransactionEnd(id);
             }
         }
     }
@@ -108,38 +109,39 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                         if (is.readUnsignedByte() != Protocol.M_RESP_UT_COMMIT) {
                             throw Log.log.unknownResponse();
                         }
-                        int id = is.read();
-                        if (id == -1) {
+                        int messageId = is.read();
+                        if (messageId == -1) {
                             statusRef.set(Status.STATUS_COMMITTED);
+                            channel.notifyTransactionEnd(id);
                         } else {
                             int len = StreamUtils.readPackedUnsignedInt32(is);
-                            if (id == Protocol.P_UT_HME_EXC) {
+                            if (messageId == Protocol.P_UT_HME_EXC) {
                                 statusRef.set(Status.STATUS_UNKNOWN);
                                 final HeuristicMixedException e = Log.log.peerHeuristicMixedException();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_UT_HRE_EXC) {
+                            } else if (messageId == Protocol.P_UT_HRE_EXC) {
                                 statusRef.set(Status.STATUS_UNKNOWN);
                                 final HeuristicRollbackException e = Log.log.peerHeuristicRollbackException();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_UT_IS_EXC) {
+                            } else if (messageId == Protocol.P_UT_IS_EXC) {
                                 statusRef.set(Status.STATUS_UNKNOWN);
                                 final IllegalStateException e = Log.log.peerIllegalStateException();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_UT_RB_EXC) {
+                            } else if (messageId == Protocol.P_UT_RB_EXC) {
                                 statusRef.set(Status.STATUS_ROLLEDBACK);
                                 final RollbackException e = Log.log.transactionRolledBackByPeer();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_UT_SYS_EXC) {
+                            } else if (messageId == Protocol.P_UT_SYS_EXC) {
                                 statusRef.set(Status.STATUS_UNKNOWN);
                                 final SystemException e = Log.log.peerSystemException();
                                 e.errorCode = is.readInt();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_SEC_EXC) {
+                            } else if (messageId == Protocol.P_SEC_EXC) {
                                 statusRef.set(oldVal);
                                 final SecurityException e = Log.log.peerSecurityException();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
@@ -198,23 +200,24 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                         if (is.readUnsignedByte() != Protocol.M_RESP_UT_ROLLBACK) {
                             throw Log.log.unknownResponse();
                         }
-                        int id = is.read();
-                        if (id == -1) {
+                        int messageId = is.read();
+                        if (messageId == -1) {
                             statusRef.set(Status.STATUS_ROLLEDBACK);
+                            channel.notifyTransactionEnd(id);
                         } else {
                             int len = StreamUtils.readPackedUnsignedInt32(is);
-                            if (id == Protocol.P_UT_IS_EXC) {
+                            if (messageId == Protocol.P_UT_IS_EXC) {
                                 statusRef.set(Status.STATUS_UNKNOWN);
                                 final IllegalStateException e = Log.log.peerIllegalStateException();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_UT_SYS_EXC) {
+                            } else if (messageId == Protocol.P_UT_SYS_EXC) {
                                 statusRef.set(Status.STATUS_UNKNOWN);
                                 final SystemException e = Log.log.peerSystemException();
                                 e.errorCode = is.readInt();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
                                 throw e;
-                            } else if (id == Protocol.P_SEC_EXC) {
+                            } else if (messageId == Protocol.P_SEC_EXC) {
                                 statusRef.set(oldVal);
                                 final SecurityException e = Log.log.peerSecurityException();
                                 e.initCause(RemoteExceptionCause.readFromStream(is));
