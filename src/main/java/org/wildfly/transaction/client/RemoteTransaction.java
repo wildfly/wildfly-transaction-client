@@ -219,7 +219,12 @@ public final class RemoteTransaction extends AbstractTransaction {
         } catch (GeneralSecurityException e) {
             throw new IllegalArgumentException(e);
         }
-        final SimpleTransactionControl control = provider.getPeerHandle(location, sslContext, authenticationConfiguration).begin(getEstimatedRemainingTime());
+        final SimpleTransactionControl control;
+        if(stateRef.get() instanceof Located) {
+            control = null;
+        } else {
+            control = provider.getPeerHandle(location, sslContext, authenticationConfiguration).begin(getEstimatedRemainingTime());
+        }
         try {
             stateRef.get().join(stateRef, location, control);
         } catch (Throwable t) {
