@@ -21,11 +21,11 @@ package org.wildfly.transaction.client.provider.remoting;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.transaction.HeuristicMixedException;
-import javax.transaction.HeuristicRollbackException;
-import javax.transaction.RollbackException;
-import javax.transaction.Status;
-import javax.transaction.SystemException;
+import jakarta.transaction.HeuristicMixedException;
+import jakarta.transaction.HeuristicRollbackException;
+import jakarta.transaction.RollbackException;
+import jakarta.transaction.Status;
+import jakarta.transaction.SystemException;
 
 import org.jboss.remoting3.Connection;
 import org.jboss.remoting3.MessageInputStream;

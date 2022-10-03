@@ -18,7 +18,7 @@
 
 package org.wildfly.transaction.client.provider.remoting;
 
-import javax.transaction.InvalidTransactionException;
+import jakarta.transaction.InvalidTransactionException;
 
 import org.jboss.remoting3.Connection;
 import org.wildfly.common.annotation.NotNull;

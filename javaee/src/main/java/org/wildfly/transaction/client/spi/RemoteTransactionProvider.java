@@ -21,7 +21,7 @@ package org.wildfly.transaction.client.spi;
 import java.net.URI;
 
 import javax.net.ssl.SSLContext;
-import javax.transaction.SystemException;
+import jakarta.transaction.SystemException;
 import javax.transaction.xa.XAException;
 
 import org.wildfly.security.auth.client.AuthenticationConfiguration;

@@ -18,8 +18,8 @@
 
 package org.wildfly.transaction.client;
 
-import javax.transaction.TransactionManager;
-import javax.transaction.UserTransaction;
+import jakarta.transaction.TransactionManager;
+import jakarta.transaction.UserTransaction;
 import javax.transaction.xa.Xid;
 
 /**

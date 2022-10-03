@@ -18,7 +18,7 @@
 
 package org.wildfly.transaction.client;
 
-import javax.transaction.Transaction;
+import jakarta.transaction.Transaction;
 
 import org.wildfly.common.Assert;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;

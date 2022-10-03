@@ -20,8 +20,8 @@ package org.wildfly.transaction.client;
 
 import static java.lang.Math.max;
 
-import javax.transaction.RollbackException;
-import javax.transaction.SystemException;
+import jakarta.transaction.RollbackException;
+import jakarta.transaction.SystemException;
 import javax.transaction.xa.Xid;
 
 import org.wildfly.common.Assert;

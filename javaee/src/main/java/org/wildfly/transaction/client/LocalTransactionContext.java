@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
-import javax.resource.spi.XATerminator;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
+import jakarta.resource.spi.XATerminator;
+import jakarta.transaction.SystemException;
+import jakarta.transaction.Transaction;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
 

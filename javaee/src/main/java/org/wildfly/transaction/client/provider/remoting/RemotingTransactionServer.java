@@ -22,8 +22,8 @@ import static org.wildfly.transaction.client._private.Log.log;
 
 import java.io.IOException;
 
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
+import jakarta.transaction.SystemException;
+import jakarta.transaction.Transaction;
 
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.Connection;

@@ -24,7 +24,7 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 import javax.net.ssl.SSLContext;
-import javax.transaction.SystemException;
+import jakarta.transaction.SystemException;
 
 import org.jboss.remoting3.Endpoint;
 import org.kohsuke.MetaInfServices;
