@@ -22,19 +22,17 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.wildfly.transaction</groupId>
-    <artifactId>wildfly-transaction-client-parent</artifactId>
-    <version>2.1.0.Final-SNAPSHOT</version>
-    <packaging>pom</packaging>
-
     <parent>
         <groupId>org.jboss</groupId>
         <artifactId>jboss-parent</artifactId>
         <version>39</version>
     </parent>
 
-    <name>WildFly transaction client Parent</name>
-    <description>Client library for applications using transactions with Wildfly - Parent</description>
+    <groupId>org.wildfly.transaction</groupId>
+    <artifactId>wildfly-transaction-client</artifactId>
+    <version>2.1.0.Final-SNAPSHOT</version>
+    <name>WildFly Transaction Client</name>
+    <description>Client library for applications using transactions with Wildfly - Jakarta EE Variant</description>
 
     <licenses>
         <license>
@@ -64,7 +62,112 @@
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
-    <modules>
-        <module>javaee</module>
-    </modules>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jboss.bridger</groupId>
+                <artifactId>bridger</artifactId>
+                <version>1.4.Final</version>
+                <executions>
+                    <!-- run after "compile", runs bridger on main classes -->
+                    <execution>
+                        <id>weave</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>transform</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.jboss</groupId>
+            <artifactId>jboss-transaction-spi-jakarta</artifactId>
+            <version>${version.org.jboss.jboss-transaction-spi}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.narayana.jts</groupId>
+            <artifactId>narayana-jts-integration-jakarta</artifactId>
+            <version>${version.org.jboss.narayana}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.narayana.jts</groupId>
+            <artifactId>narayana-jts-idlj-jakarta</artifactId>
+            <version>${version.org.jboss.narayana}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.narayana.jta</groupId>
+            <artifactId>narayana-jta-jakarta</artifactId>
+            <version>${version.org.jboss.narayana}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.transaction</groupId>
+            <artifactId>jakarta.transaction-api</artifactId>
+            <version>${version.jakarta.transaction.jakarta.transaction-api}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.common</groupId>
+            <artifactId>wildfly-common</artifactId>
+            <version>${version.org.wildfly.common}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+            <version>${version.org.jboss.logging.jboss-logging}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging-processor</artifactId>
+            <version>${version.org.jboss.logging.jboss-logging-processor}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.xnio</groupId>
+            <artifactId>xnio-api</artifactId>
+            <version>${version.org.jboss.xnio}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.xnio</groupId>
+            <artifactId>xnio-nio</artifactId>
+            <version>${version.org.jboss.xnio}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.remoting</groupId>
+            <artifactId>jboss-remoting</artifactId>
+            <version>${version.org.jboss.remoting}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.security</groupId>
+            <artifactId>wildfly-elytron</artifactId>
+            <version>${version.org.wildfly.elytron}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly</groupId>
+            <artifactId>wildfly-naming-client</artifactId>
+            <version>${version.org.wildfly.naming-client}</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.resource</groupId>
+            <artifactId>jakarta.resource-api</artifactId>
+            <version>${version.jakarta.resource.jakarta.resource-api}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kohsuke.metainf-services</groupId>
+            <artifactId>metainf-services</artifactId>
+            <version>${version.org.kohsuke.metainf-services}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
 </project>
