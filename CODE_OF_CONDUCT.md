@@ -32,7 +32,7 @@ This code of conduct applies both within project spaces and in public spaces
 when an individual is representing the project or its community.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by 
-contacting the JBoss EJB CLient project lead, Cheng Fang <xxx@redhat.com> or Tomasz Adamski <tadamski@redhat.com>
+contacting the JBoss EJB CLient project lead, Cheng Fang <cfang@redhat.com> or Tomasz Adamski <tadamski@redhat.com>
 
 This Code of Conduct is adapted from the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md) which is 
 adapted from the Contributor Covenant
