@@ -26,6 +26,7 @@
         <groupId>org.jboss</groupId>
         <artifactId>jboss-parent</artifactId>
         <version>39</version>
+        <relativePath/>
     </parent>
 
     <groupId>org.wildfly.transaction</groupId>
