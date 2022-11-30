@@ -1,0 +1,79 @@
+= Wildfly Transaction Client User Documentation
+:Author:    Richard Achmatowicz
+:Email:     <rachmato@redhat.com>
+:Date:      2022
+:Revision:  1.0
+:toc:   left
+
+== Introduction
+
+The Wildfly application server provides various mechanisms for users to remotely connect to and access deployments on
+the server, mechanisms such as:
+
+* the EJB client library, which provides remote access to deployed Enterprise Java Beans (EJB)
+* the Naming client library, which provides remote access to JNDI name services
+
+Such remote invocation mechanisms often appear as key elements of user applications involving the server, and
+need to be reliable in the presence of concurrency and failures; in short, they would benefit from the kinds
+of guarantees that transactions provide.
+
+=== Purpose
+
+The Wildfly Transaction Client (WTC) library provides a set of APIs which allow integrating such remote invocation
+mechanisms into the transaction framework of the Wildfly server.
+
+In this way, The Wildfly Transaction Client library supportz and integrate transactional semantics for standalone
+remote clients as well as remote clients within deployments on the server.
+
+=== Scenarios (remote, local)
+
+Remote invocation mechanisms may be used by EJB or Naming clients in two distinct situations:
+
+* a client within a standalone application communicating with a server
+* a client within an application deployed on a server communicating with another server (via a remote outbound
+connection)
+
+In the first case,the standalone application generally does not have access to a transaction manager whereas in the
+second case, it does. This has important consequences for the way in which the remote invocation mechanism is
+integrated into the transactional framework.
+
+In sections which follow, we shall describe the APIs provided for use in these two different scanaios.
+
+=== Contextuals
+
+The EJB client and Naming client remote invocation libraries make use of Contextuals for managing thread-local
+state for certain key cross-cutting concerns, such as security, transactions and other aspects.
+
+== Remote Transactions
+
+=== APIs and Assertions
+
+=== Thread Contexts
+
+=== Examples of remote transaction use
+
+== Local Transactions
+
+=== APIs and Assertions
+
+=== Thread Contexts
+
+=== Examples of local transaction use
+
+== Related issues
+
+=== Use of JBoss Remoting and Elytron
+
+=== Configuration
+
+
+
+
+
+
+
+
+
+
+
+
