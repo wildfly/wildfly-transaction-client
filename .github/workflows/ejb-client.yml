@@ -10,15 +10,15 @@ on:
 
 jobs:
   build-test-matrix:
-    name: ${{ matrix.distro }}-${{ matrix.jdk }}-${{ matrix.os }}
+    name: ${{ matrix.jdk-distribution }}-${{ matrix.jdk-version }}-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        jdk: [17]
-        distro: [temurin]
+        jdk-distribution: [adopt]
+        jdk-version: [17]
     steps:
     - name: Configure runner - Linux 
       if: contains(matrix.os, 'ubuntu')
@@ -32,11 +32,11 @@ jobs:
         echo '::1         localhost localhost.localdomain localhost6 localhost6.localdomain6' >> %SystemRoot%\System32\drivers\etc\hosts
       shell: cmd
     - uses: actions/checkout@v3
-    - name: Set up JDK ${{ matrix.jdk }}
+    - name: Set up JDK ${{ matrix.jdk-distribution }} ${{ matrix.jdk-version }}
       uses: actions/setup-java@v3
       with:
-        java-version: ${{ matrix.jdk }}
-        distribution: ${{ matrix.distro }}
+        distribution: ${{ matrix.jdk-distribution }}
+        java-version: ${{ matrix.jdk-version }}
         cache: 'maven'
     - name: Run Tests
       run: |
@@ -52,8 +52,8 @@ jobs:
       run: |
         cd jboss-ejb-client
         mvn -ntp -U -B -Dmaven.source.skip -Dversion.org.wildfly.transaction.client=$WTC_VER -Dmaven.compiler.showWarnings=false -Dmaven.compiler.showDeprecation=false clean install
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: surefire-reports-${{ matrix.distro }}-${{ matrix.jdk }}-${{ matrix.os }}
+        name: surefire-${{ matrix.jdk-distribution }}-${{ matrix.jdk-version }}-${{ matrix.os }}
         path: '**/surefire-reports/*.txt'
