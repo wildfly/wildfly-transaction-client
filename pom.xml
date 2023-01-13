@@ -55,7 +55,7 @@
         <version.org.jboss.xnio>3.5.1.Final</version.org.jboss.xnio>
         <version.org.kohsuke.metainf-services>1.7</version.org.kohsuke.metainf-services>
         <version.org.wildfly.common>1.2.0.Final</version.org.wildfly.common>
-        <version.org.wildfly.elytron>1.1.0.Final</version.org.wildfly.elytron>
+        <version.org.wildfly.elytron>1.15.15.Final</version.org.wildfly.elytron>
         <version.org.wildfly.naming-client>2.0.0.Final</version.org.wildfly.naming-client>
         <version.bridger>1.6.Final</version.bridger>
 
