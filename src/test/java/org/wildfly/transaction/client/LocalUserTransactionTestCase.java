@@ -35,6 +35,9 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * Checks the functionality of the LocalUserTransacton, that is the transaction created by the client that runs within the application server.
+ */
 public class LocalUserTransactionTestCase {
 
     @BeforeClass
@@ -49,6 +52,12 @@ public class LocalUserTransactionTestCase {
         TestTransactionManager.reset();
     }
 
+    /**
+     * Sanity check of LocalUserTransaction commit scenario. Check whether the transaction has been correctly started,
+     * associated with the current context, and finally that the commit operation was propagated to the mocktransaction manager.
+     *
+     * @throws Exception
+     */
     @Test
     public void simpleCommitTest() throws Exception {
         ContextTransactionManager tm = ContextTransactionManager.getInstance();
@@ -68,6 +77,12 @@ public class LocalUserTransactionTestCase {
         Assert.assertFalse(TestTransactionManager.rolledback);
     }
 
+    /**
+     * Sanity check of LocalUserTransaction rollback scenario. Check whether the transaction has been correctly started,
+     * associated with the current context, and finally that the rollback operation was propagated to the mock transaction manager.
+     *
+     * @throws Exception
+     */
     @Test
     public void simpleRollbackTest() throws Exception {
         ContextTransactionManager tm = ContextTransactionManager.getInstance();
@@ -87,6 +102,12 @@ public class LocalUserTransactionTestCase {
         Assert.assertTrue(TestTransactionManager.rolledback);
     }
 
+    /**
+     * Tests LocalUserTransaction import scenario. Checks whether the imported transaction has been created
+     * and associated with the current context, that imported transaction cannot initiate commit operation and whether
+     * XA calls are correctly propagated to the mock transaction manager.
+     * @throws Exception
+     */
     @Test
     public void importedTransactionTest() throws Exception {
         LocalTransactionContext ltc = LocalTransactionContext.getCurrent();
@@ -113,6 +134,11 @@ public class LocalUserTransactionTestCase {
 
     }
 
+    /**
+     * Tests LocalUserTransaction XA resources enlistment. Checks whether the transaction has been created
+     * and associated with the current context, enlists two mock XA resources to it, and after performing commit checks
+     * that those two resources have been correctly enlisted in the transaction.
+     */
     @Test
     public void xaTest() throws Exception {
         ContextTransactionManager tm = ContextTransactionManager.getInstance();
@@ -145,6 +171,11 @@ public class LocalUserTransactionTestCase {
         Assert.assertTrue(enlistedResources.contains(xaResource2));
     }
 
+    /**
+     * Checks outflowing local transaction to the other node. Checks whether the transaction has been created
+     * and associated with the current context, ouflows the transaction to the other node and checks whether
+     * {@link SubordinateXAResource}, which represents this node, has been enlisted to the local transaction.
+     */
     @Test
     public void outflowedTransactionTest() throws Exception {
         ContextTransactionManager tm = ContextTransactionManager.getInstance();

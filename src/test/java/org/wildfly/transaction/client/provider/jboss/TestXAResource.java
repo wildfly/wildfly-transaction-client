@@ -3,6 +3,9 @@ package org.wildfly.transaction.client.provider.jboss;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
+/**
+ * Mock implementation of {@link XAResource} to verify correct behavior of 2 phase commit protocol.
+ */
 public class TestXAResource implements XAResource {
 
     @Override

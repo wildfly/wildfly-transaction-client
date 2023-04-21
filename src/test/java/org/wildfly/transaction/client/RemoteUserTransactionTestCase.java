@@ -36,6 +36,9 @@ import org.wildfly.transaction.client.provider.remoting.RemotingTransactionServe
 import java.net.URI;
 import java.nio.file.Path;
 
+/**
+ * Checks the functionality of the RemoteUserTransacton, that is the transaction created by the client that runs outside the application server.
+ */
 @RunWith(BMUnitRunner.class)
 @BMScript(dir="target/test-classes")
 public class RemoteUserTransactionTestCase {
@@ -69,6 +72,13 @@ public class RemoteUserTransactionTestCase {
         dummyServer.stop();
     }
 
+    /**
+     * Sanity check of RemoteUserTransaction commit scenario. Check whether the remote transaction has been correctly started and
+     * associated with the current context. Later, sets the location of the underlying transaction and makes sure that commit
+     * operation is correctly propagated to the transaction instance.
+     *
+     * @throws Exception
+     */
     @Test
     public void testCommit() throws Exception {
 
@@ -100,6 +110,13 @@ public class RemoteUserTransactionTestCase {
         Assert.assertTrue(rt.getStatus() == Status.STATUS_COMMITTED);
     }
 
+    /**
+     * Sanity check of RemoteUserTransaction rollback scenario. Check whether the remote transaction has been correctly started and
+     * associated with the current context. Later, sets the location of the underlying transaction and makes sure that rollback
+     * operation is correctly propagated to the transaction instance.
+     *
+     * @throws Exception
+     */
     @Test
     public void testRollback() throws Exception {
 
@@ -131,6 +148,13 @@ public class RemoteUserTransactionTestCase {
         Assert.assertTrue(rt.getStatus() == Status.STATUS_ROLLEDBACK);
     }
 
+    /**
+     * Sanity check of RemoteUserTransaction setRollbackOnly scenario. Check whether the remote transaction has been correctly started and
+     * associated with the current context. Later, sets the location of the underlying transaction and makes sure that setRollbackOnly
+     * operation is correctly propagated to the transaction instance and that the commit operation cannot be performed on that transaction.
+     *
+     * @throws Exception
+     */
     @Test
     public void testRollbackOnly() throws Exception {
 
@@ -172,6 +196,13 @@ public class RemoteUserTransactionTestCase {
         Assert.assertTrue(rt.getStatus() == Status.STATUS_ROLLEDBACK);
     }
 
+
+    /**
+     * If no invocations are perfomed, then client optimizes by not performing any transaction related invocations on the server.
+     * This method is needed to circumvent that for the test purposes.
+     *
+     * @throws javax.transaction.SystemException
+     */
     private void mockEJBInvocation() throws SystemException {
         remotingTransactionServer.getOrBeginTransaction(transactionId, 5000);
     }

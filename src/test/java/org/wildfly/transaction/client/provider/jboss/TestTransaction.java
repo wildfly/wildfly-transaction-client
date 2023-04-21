@@ -28,6 +28,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The {@link javax.transaction.Transaction} implementation is provided by transaction manager (Narayana).
+ * In the test we are mocking it.
+ */
 public class TestTransaction implements Transaction {
 
     public static TestTransaction latest;

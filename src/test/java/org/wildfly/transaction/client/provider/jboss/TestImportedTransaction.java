@@ -24,6 +24,10 @@ import javax.transaction.xa.Xid;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * The {@link ImportedTransaction} implementation is provided by transaction manager (Narayana).
+ * In the test we are mocking it.
+ */
 public class TestImportedTransaction extends TestTransaction implements ImportedTransaction {
 
     public static TestImportedTransaction latest = null;

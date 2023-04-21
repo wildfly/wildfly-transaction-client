@@ -29,6 +29,10 @@ import org.wildfly.transaction.client.SimpleXid;
 import javax.transaction.xa.Xid;
 import java.nio.file.Path;
 
+/**
+* {@link org.wildfly.transaction.client.spi.LocalTransactionProvider} is a spi that allows to integrate transaction client
+ * with underlying transaction manager implementation (Narayana). In tests we mock both the provider and the implementation.
+*/
 public class TestTransactionProvider extends JBossLocalTransactionProvider {
 
     public static boolean newTransactionCreated = false;

@@ -46,6 +46,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+/**
+ *  The DummyServer is used in unit tests. The server listens on a specified host and port address so that the client can
+ *  establish a connection to it during the tests, but does not perform any activity beyond that.
+ */
 public class DummyServer implements AutoCloseable {
 
     private static final Logger logger = Logger.getLogger(DummyServer.class);

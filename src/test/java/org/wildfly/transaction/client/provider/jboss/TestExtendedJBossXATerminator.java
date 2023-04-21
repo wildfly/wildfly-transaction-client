@@ -24,7 +24,10 @@ import org.jboss.tm.TransactionImportResult;
 import org.wildfly.common.Assert;
 
 import javax.transaction.xa.Xid;
-
+/**
+ * {@link ExtendedJBossXATerminator} is a part of transaction provider spi. In unit tests we use it to verify transaction
+ * import.
+ */
 public class TestExtendedJBossXATerminator implements ExtendedJBossXATerminator {
 
     public TestExtendedJBossXATerminator() {

@@ -25,6 +25,10 @@ import jakarta.transaction.SystemException;
 import jakarta.transaction.Transaction;
 import jakarta.transaction.TransactionManager;
 
+/**
+ * The {@link javax.transaction.TransactionManager} implementation is provided by transaction manager (Narayana).
+ * In the test we are mocking it.
+ */
 public class TestTransactionManager implements TransactionManager {
 
     Transaction current = null;
