@@ -54,7 +54,7 @@
         <version.org.jboss.remoting>5.0.23.Final</version.org.jboss.remoting>
         <version.org.jboss.xnio>3.8.8.Final</version.org.jboss.xnio>
         <version.org.kohsuke.metainf-services>1.7</version.org.kohsuke.metainf-services>
-        <version.org.wildfly.common>1.2.0.Final</version.org.wildfly.common>
+        <version.org.wildfly.common>1.6.0.Final</version.org.wildfly.common>
         <version.org.wildfly.elytron>1.1.0.Final</version.org.wildfly.elytron>
         <version.org.wildfly.naming-client>2.0.0.Final</version.org.wildfly.naming-client>
         <version.bridger>1.6.Final</version.bridger>
