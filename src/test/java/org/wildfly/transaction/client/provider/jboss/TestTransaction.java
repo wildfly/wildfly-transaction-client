@@ -38,8 +38,6 @@ public class TestTransaction implements Transaction {
 
     public Map<Object, Object> resources = new HashMap<>();
 
-    public Map<Object, Object> localResources = new HashMap<>();
-
     private List<XAResource> enlistedResources = new ArrayList<>();
 
     public enum State {
@@ -128,14 +126,6 @@ public class TestTransaction implements Transaction {
 
     Object getResource(Object key) {
         return resources.get(key);
-    }
-
-    void putLocalResource(Object key, Object value) {
-        localResources.put(key, value);
-    }
-
-    Object getLocalResource(Object key) {
-        return localResources.get(key);
     }
 
     public State getState() {

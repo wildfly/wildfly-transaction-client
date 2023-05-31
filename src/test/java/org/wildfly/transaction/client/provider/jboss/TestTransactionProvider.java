@@ -75,17 +75,17 @@ public class TestTransactionProvider extends JBossLocalTransactionProvider {
 
     @Override
     public Object getResource(Transaction transaction, Object key) {
-        return ((TestTransaction) transaction).getLocalResource(key);
+        return ((TestTransaction) transaction).getResource(key);
     }
 
     @Override
     public void putResource(Transaction transaction, Object key, Object value) throws IllegalArgumentException {
-        ((TestTransaction) transaction).putLocalResource(key, value);
+        ((TestTransaction) transaction).putResource(key, value);
     }
 
     @Override
     public Object putResourceIfAbsent(Transaction transaction, Object key, Object value) throws IllegalArgumentException {
-        ((TestTransaction) transaction).putLocalResource(key, value);
+        ((TestTransaction) transaction).putResource(key, value);
         return value;
     }
 
