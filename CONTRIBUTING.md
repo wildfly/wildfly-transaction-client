@@ -37,7 +37,7 @@ To create a new issue, comment on an existing issue, or assign an issue to yours
 
 
 ### Good First Issues
-Want to contribute to the JBoss EJB client project but aren't quite sure where to start? Check out our issues with the `good-first-issue` label. These are a triaged set of issues that are great for getting started on our project. These can be found [here](https://issues.redhat.com/issues/?filter=12403277).
+Want to contribute to the JBoss EJB client project but aren't quite sure where to start? Check out our issues with the `good-first-issue` label. These are a triaged set of issues that are great for getting started on our project. These can be found [here](https://issues.redhat.com/issues/?jql=project%20%3D%20WFTC%20and%20labels%3Dgood-first-issue%20ORDER%20BY%20key%20DESC).
 
 Once you have selected an issue you'd like to work on, make sure it's not already assigned to someone else. To assign an issue to yourself, simply click on "Start Progress". This will automatically assign the issue to you.
 
