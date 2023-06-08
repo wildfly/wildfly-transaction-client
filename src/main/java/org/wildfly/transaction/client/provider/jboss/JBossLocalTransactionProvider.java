@@ -30,8 +30,11 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 
-import jakarta.resource.spi.XATerminator;
+import com.arjuna.ats.arjuna.common.arjPropertyManager;
 import jakarta.transaction.HeuristicCommitException;
 import jakarta.transaction.HeuristicMixedException;
 import jakarta.transaction.HeuristicRollbackException;
@@ -43,12 +46,6 @@ import jakarta.transaction.Synchronization;
 import jakarta.transaction.SystemException;
 import jakarta.transaction.Transaction;
 import jakarta.transaction.TransactionManager;
-import jakarta.transaction.TransactionSynchronizationRegistry;
-import javax.transaction.xa.XAException;
-import javax.transaction.xa.XAResource;
-import javax.transaction.xa.Xid;
-
-import com.arjuna.ats.arjuna.common.arjPropertyManager;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
@@ -662,9 +659,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
     public static final class Builder {
         private int staleTransactionTime = 600;
         private ExtendedJBossXATerminator extendedJBossXATerminator;
-        private XATerminator xaTerminator;
         private TransactionManager transactionManager;
-        private TransactionSynchronizationRegistry transactionSynchronizationRegistry;
         private XAResourceRecoveryRegistry xaResourceRecoveryRegistry;
         private Path xaRecoveryLogDirRelativeToPath;
 
@@ -712,28 +707,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
 
         /**
-         * Get the XA terminator.
-         *
-         * @return the XA terminator
-         */
-        @Deprecated
-        public XATerminator getXATerminator() {
-            return xaTerminator;
-        }
-
-        /**
-         * Set the XA terminator.
-         *
-         * @param xt the XA terminator (must not be {@code null})
-         */
-        @Deprecated
-        public Builder setXATerminator(final XATerminator xt) {
-            Assert.checkNotNullParam("xt", xt);
-            this.xaTerminator = xt;
-            return this;
-        }
-
-        /**
          * Get the transaction manager.
          *
          * @return the transaction manager
@@ -750,28 +723,6 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         public Builder setTransactionManager(final TransactionManager tm) {
             Assert.checkNotNullParam("tm", tm);
             this.transactionManager = tm;
-            return this;
-        }
-
-        /**
-         * Get the transaction synchronization registry.
-         *
-         * @return the transaction synchronization registry
-         */
-        @Deprecated
-        public TransactionSynchronizationRegistry getTransactionSynchronizationRegistry() {
-            return transactionSynchronizationRegistry;
-        }
-
-        /**
-         * Set the transaction synchronization registry.
-         *
-         * @param tsr the transaction synchronization registry
-         */
-        @Deprecated
-        public Builder setTransactionSynchronizationRegistry(final TransactionSynchronizationRegistry tsr) {
-            Assert.checkNotNullParam("tsr", tsr);
-            this.transactionSynchronizationRegistry = tsr;
             return this;
         }
 
