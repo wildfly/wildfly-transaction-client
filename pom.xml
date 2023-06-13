@@ -58,6 +58,7 @@
         <version.org.wildfly.elytron>2.2.0.Final</version.org.wildfly.elytron>
         <version.org.wildfly.naming-client>2.0.1.Final</version.org.wildfly.naming-client>
         <version.bridger>1.6.Final</version.bridger>
+        <version.org.jboss.byteman>4.0.18</version.org.jboss.byteman>
 
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
@@ -79,7 +80,15 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
+	</plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <argLine>-Djdk.attach.allowAttachSelf=true -Dorg.jboss.byteman.verbose</argLine>
+                    </configuration>
+                </plugin>
+
         </plugins>
     </build>
 
@@ -169,6 +178,37 @@
             <artifactId>metainf-services</artifactId>
             <version>${version.org.kohsuke.metainf-services}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman</artifactId>
+            <version>${version.org.jboss.byteman}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman-bmunit</artifactId>
+            <version>${version.org.jboss.byteman}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <artifactId>testng</artifactId>
+                    <groupId>org.testng</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman-install</artifactId>
+            <version>${version.org.jboss.byteman}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
