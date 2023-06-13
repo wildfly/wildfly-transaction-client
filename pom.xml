@@ -45,6 +45,7 @@
 
     <properties>
         <version.jakarta.transaction.jakarta.transaction-api>2.0.1</version.jakarta.transaction.jakarta.transaction-api>
+        <version.org.asciidoctor.asciidoctor-maven-plugin>1.5.5</version.org.asciidoctor.asciidoctor-maven-plugin>
         <version.jakarta.resource.jakarta.resource-api>2.1.0</version.jakarta.resource.jakarta.resource-api>
         <version.org.jboss.jboss-transaction-spi>8.0.0.Final</version.org.jboss.jboss-transaction-spi>
         <version.org.jboss.logging.jboss-logging>3.5.0.Final</version.org.jboss.logging.jboss-logging>
@@ -66,6 +67,7 @@
 
     <build>
         <plugins>
+
             <plugin>
                 <groupId>org.jboss.bridger</groupId>
                 <artifactId>bridger</artifactId>
@@ -80,15 +82,45 @@
                         </goals>
                     </execution>
                 </executions>
-	</plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <configuration>
-                        <argLine>-Djdk.attach.allowAttachSelf=true -Dorg.jboss.byteman.verbose</argLine>
-                    </configuration>
-                </plugin>
+            </plugin>
 
+            <!-- build the docs in docs directory -->
+            <plugin>
+                <groupId>org.asciidoctor</groupId>
+                <artifactId>asciidoctor-maven-plugin</artifactId>
+                <version>${version.org.asciidoctor.asciidoctor-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>output-html</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>process-asciidoc</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/docs</sourceDirectory>
+                            <outputDirectory>${project.build.directory}/generated-docs</outputDirectory>
+                            <preserveDirectories>true</preserveDirectories>
+                            <backend>html5</backend>
+                            <sourceHighlighter>coderay</sourceHighlighter>
+                            <attributes>
+                                <imagesdir>./images</imagesdir>
+                                <icons>font</icons>
+                                <sectanchors>true</sectanchors>
+                                <idprefix/>
+                                <idseparator>-</idseparator>
+                                <docsinfo1>true</docsinfo1>
+                            </attributes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Djdk.attach.allowAttachSelf=true -Dorg.jboss.byteman.verbose</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
@@ -211,4 +243,5 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
 </project>

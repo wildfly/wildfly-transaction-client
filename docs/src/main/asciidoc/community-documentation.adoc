@@ -1,0 +1,783 @@
+= Wildfly Transaction Client User Documentation
+:Author:    Richard Achmatowicz
+:Email:     <rachmato@redhat.com>
+:Date:      2022
+:Revision:  1.0
+:toc:   left
+:icons: font
+:wildfly-docs:   https://docs.wildfly.org/27/
+
+== Introduction
+
+The Wildfly application server provides various mechanisms for users to remotely connect to and access services and
+deployments on the server, mechanisms such as:
+
+* the EJB client library, which provides remote access to deployed Enterprise Java Beans (EJB)
+* the Naming client library, which provides remote access to JNDI name services
+
+Such remote invocation mechanisms often appear as key elements of user applications involving the server. These
+mechanisms need to be reliable in the presence of concurrency and failures. In short, they would benefit from
+the kinds of guarantees that transactions provide.
+
+=== Purpose
+
+The Wildfly Transaction Client (WTC) library provides a set of APIs which allow integrating such remote invocation
+mechanisms into the transaction framework of the Wildfly server.
+
+In this way, The Wildfly Transaction Client library supports and integrates transactional semantics with client
+applications based on remote invocation and the services they interact with.
+
+=== Scenarios for remote invocation
+
+Remote invocation mechanisms may be used by EJB or Naming clients in two distinct situations:
+
+* a client within a standalone application, communicating with a server
+* a client within an application deployed on a server, communicating with another server (via a remote outbound
+connection)
+
+In the first case, the standalone application generally does not have access to a transaction manager, whereas in the
+second case, it does. This has important consequences for the way in which the remote invocation mechanism is
+integrated into the transactional framework.
+
+In sections which follow, we shall describe the APIs provided for use in these two different scenarios.
+
+=== Contextuals
+
+The EJB client and Naming client remote invocation libraries make use of Contextuals for managing thread-local
+state for certain key cross-cutting concerns, such as security, transactions and other aspects.
+The Wildfly Transaction Client makes use of Contextuals to associate transaction-related state with a thread. We will
+see how these are used in the sections that follow.
+
+=== Overview of the framework design
+
+In what follows, it will be helpful to understand the overall design strategy for the Wildfly Transaction Client
+library as well as to familiarize ourselves with some of the key common classes used in both scenarios.
+In the interests of brevity, we shall refer to a standalone client without access to a transaction manager
+simply as a *standalone client*, and a client within a deployment on a server with a transaction manager as a
+*server-client*.
+
+[#design-constraints]
+==== Design constraints
+
+Here are a few points that influenced the design to introduce transactional semantics for remote invocation:
+
+* the client and server are not co-located but are connected by a network, so some form of communication between
+client and server over this network for the purpose of coordinating transaction operation is required; this
+communication needs to be independent of the communication used by the invocation mechanism itself (e.g. to commit
+a transaction when leaving transaction scope)
+* transactional semantics depend on associating units of work with threads, both on the client and the server,
+so some means to do this is required. On an application server, this is usually managed by the transaction manager.
+In the case of the Wildfly Transaction Client, we need such work-to-thread association on both the client and the
+server and these associations are represented by a ContextTransactionManager class
+* the client and server are not co-located, so, for a given transaction involving a client and server,
+we need to represent the transaction in two parts: a client-side part and a server-side part; for standalone clients,
+a RemoteTransaction instance is used for representing transaction-related state on the client and a LocalTransaction
+instance used for representing transaction-related state on the server; for a server-client, one LocalTransaction
+instance is used for representing transaction-related state on the server-client and another LocalTransaction instance
+is used for representing transaction-related state on the server, as in the standalone client case
+* in the case of the standalone client, it is up to the client to manage the transaction, via a RemoteUserTransaction;
+in the case of a server-client, the transaction scope could be container-managed, via a LocalTransaction, or
+client-managed, via a LocalUserTransaction
+
+With those design constraints in mind, we now outline the high-level approach to the design.
+
+==== Design approach
+
+The design approach differs, depending on which of the two scenarios we are considering: the standalone client
+scenario where the client-side does not have access to a transaction manager, and the server-client scenario where
+the client-side does have access to a transaction manager. We assume that the server-side always has access to a
+transaction manager.
+
+===== Standalone client scenario
+
+At transaction begin time, the client will obtain an instance of a RemoteUserTransaction from its
+RemoteTransactionContext, and call begin() to define the beginning of transaction scope, which will associate a
+RemoteTransaction with the current thread.
+
+When a method is then invoked, the method invocation will append metadata to the method request message: the
+RemoteTransaction id and its timeout value. The server will receive this information and either create a new
+LocalTransaction or get an existing LocalTransaction for the transaction id. Invocation processing will be performed
+within the scope of this LocalTransaction. When the invocation processing has completed, a response will be sent back
+as usual. Further invocations follow the same pattern.
+
+At transaction completion time, the client will commit the work performed by the transaction using the
+RemoteUserTransaction interface. This will cause a commit message containing the transaction id to
+be sent to the server along a separate communication channel, and the work on the server recorded by the
+LocalTransaction will be committed on the server.
+
+WARNING: Due to the absence of a transaction manager on the client side, the standalone client
+scenario is restricted to making remote invocations on a *single node only* within a single transaction scope.
+
+===== Server-client scenario
+
+In the case of a server-client, the approach is similar, but with differences due to the fact that LocalTransactions
+on the server generally support XA (distributed) transactions. The Wildfly transaction manager does supprt XA
+transactions.
+
+NOTE: XA (distributed) transactions are those in which method invocations can be made to different
+servers enlisted within the same transaction. A Two Phase Commit (2PC) protocol will be used at transaction
+completion time to ensure that all enlisted servers commit {resp. rollback} together.
+
+Also, in the server-client scenario, transactions may be container-managed or application-managed (via
+LocalUserTransaction). Here, we consider only the case of transactions managed by the container.
+
+At transaction begin time, the client will have its transaction-scope and enclosing LocalTransaction managed by
+the container, which will automatically call beginTransaction() on the associated LocalTransactionContext.
+
+When a method is invoked, the target server of the invocation must be registered on the server-client as an XAResource.
+This XAResource is used for two purposes: to generate an Xid for the XA transaction, and to "verify enlistment" of
+the transaction when the response returns. As before, the method invocation will append metadata to the method
+request message: the LocalTransaction Xid and the timeout.
+
+NOTE: XA transactions are identified by an Xid, which comprises a format, a global transaction id and a branch
+qualifier.
+
+The server will receive this information and either create a new LocalTransaction or get an existing LocalTransaction
+for the transaction's Xid. Invocation processing will be performed within the scope of this LocalTransaction.
+When the invocation processing has completed, a response will be sent back as usual, but this time a transaction
+command value appended as metadata to the response: this transaction command value indicates if a new
+LocalTransaction was created on the server for the Xid or an existing LocalTransaction was reused.
+Upon receiving the invocation response, the server-client will verify the enlistment of the XAResource based on
+the returned transaction command value. Further invocations follow the same pattern.
+
+At transaction completion time, the container will automatically commit {resp. rollback} the work performed by the
+transaction using the ContextTransactionManager interface. This will cause a Two Phase Commit protocol to be executed,
+to ensure that all XAResources involved in the set of invocations within transaction scope are committed
+{resp. rolled back} together. At this point, the work done on the server(s) and managed by the respective
+LocalTransactions will be committed {resp. rolled back}.
+
+==== Key common classes
+
+Both the standalone client scenario and the server-client scenario have their own APIs for managing transactions on
+the client, adding metadata to the request and response messages and managing transactions on the server, but
+there are some common classes and interfaces used by both. This section provides some detail on these common
+framework classes.
+
+ContextTransactionManager:: This class implements the interface TransactionManager and is used to associate
+transactions with threads. It can also be used to set a transaction timeout on a per-transaction basis.
+The class is used both on the client-side and the server-side for that purpose.
+RemoteTransaction:: This class is used to represent the client-side part of a transaction in the standalone client
+scenario, as a state machine which transitions through the various states required by a remote transaction,
+one which is not controlled by a transaction manager.
+RemoteTransactionContext:: This class is a Contextual which the application uses to obtain a RemoteUserTransaction,
+as well as to perform certain operations required when adding metadata to invocation messages from the client to
+the server.
+LocalTransaction:: This class is used to represent the server-side part of a transaction, generally by wrapping
+the native transactions on the server. It is also used to represent the client-side part of a transaction in the
+server-client scenario.
+LocalTransactionContext:: This class is a Contextual (thread-local state) which the server has access to when receiving
+transaction-scoped invocation requests, and is used to manage the creation of the server-side representation
+(i.e. LocalTransaction) of the client-side transaction referenced in the request.
+
+Now that we are familiar with the general design approach and some key common classes, in the next sections,
+we provide more detail on remote transactions and local transactions.
+
+== Remote Transactions
+
+In the context of the Wildfly Transaction Client, RemoteTransactions cater to the use case where a standalone
+application client, without a transaction manager, needs to impose transactional semantics on a set of one or more
+remote invocations on a server. Due to the absence of a transaction manager on the client, the transactional scope
+is controlled by the user via a RemoteUserTransaction. Further, RemoteTransactions are limited to interacting with
+a single server at a time; XA style distributed transactions are not supported when using RemoteTransactions.
+
+=== APIs
+
+The key APIs involved in the use of RemoteTransactions are represented by the following classes and interfaces:
+
+==== Client side APIs
+RemoteUserTransaction:: This class implements the interface UserTransaction and is used by the client to drive the
+client-side transaction scope (e.g. begin(), commit(), rollback())
+RemoteTransactionContext:: This class is a Contextual which the application uses to obtain a RemoteUserTransaction,
+as well as to perform certain operations required when adding metadata to invocation messages from the client to
+the server.
+ContextTransactionManager:: This class is used on the client to manage the association between threads and
+the RemoteTransactions they use.
+
+==== Server side APIs
+LocalTransaction:: This class is used on the server-side to represent the client-side transaction whose transaction
+id was sent in the invocation request message. It is responsible for recording the work done on the server by each
+of the method invocations with that transaction id.
+LocalTransactionProvider:: This class is used to provide access to the native TransactionManager and its various
+ancillary functions (e.g. transaction recovery) on the server-side. Such access is necessary when creating a new
+LocalTransaction, for example.
+ContextTransactionManager:: This class is used on the server to manage the association between server threads and
+the LocalTransactions acting as representatives for RemoteTransactions on the client.
+
+=== Communication between client and server
+
+The Wildfly Transaction Client library was intended to be used with a variety of communication protocols and has
+an SPI which allows tailoring the framework to use different protocols. At the moment, the JBoss Remoting "remote"
+protocol and the HTTP protocol are supported.
+
+These SPI classes together provide the framework with the ability to send transaction-related messages from client to
+server on a separate communication channel, whether that be based on JBoss Remoting or HTTP. To keep the
+discussion simple, we assume in what follows that we are using the JBoss Remoting "remote" protocol.
+
+In the case of RemoteTransactions, client to server communication is facilitated by the following classes and
+interfaces:
+
+==== Client side
+RemoteTransactionProvider:: This interface provides access to RemoteTransactionPeer for client to server communication.
+Implementations are provided on a per-scheme basis. The RemotingRemoteTransactionProvider provides the implementation
+for the "remote" scheme.
+RemoteTransactionPeer:: This interface provides methods to return TransactionControl interfaces for use in sending
+transaction-related operations from client to a server at a given URI. Implementations are provided on a per-scheme
+basis. The RemotingRemoteTransactionPeer provides the implementation for the "remote" scheme.
+SimpleTransactionControl:: This interface implements operations required to control transaction state on the server
+from a RemoteTransaction on the client. It is implemented by RemotingRemoteTransactionHandle and makes use of a JBoss
+Remoting-based communication channel established between client and server (see below).
+TransactionClientChannel:: This class is client-side JBoss Remoting channel used to send transaction-related operations
+from client to server.
+
+==== Server side
+LocalTransactionProvider:: This class is used to provide access to the native TransactionManager and its various
+ancillary functions (e.g. transaction recovery) on the server-side. Such access is necessary when creating
+a new LocalTransaction to represent the client side RemoteTransaction.
+RemotingTransactionService:: This class implements a Wildfly service and is used to allow clients to establish
+authenticated connections to the Wildfly server for the purpose of managing transactions.
+RemotingTransactionServer:: This class is used on the server to accept and handle operations sent by the
+SimpleTransactionControl over a JBoss Remoting channel. One RemotingTransactionServer instance will be used
+per connection to the server. This class also aids in the creation and management of LocalTransaction instances which
+represent the server-side part of a client-side RemoteTransaction.
+TransactionServerChannel:: This class is a server-side JBoss Remoting channel used to receive transaction-related
+operations sent from the client to the server and hand them off to the RemotingTransactionServer.
+
+We can identify how these classes cooperate to obtain the connections, channels and transaction control structures
+needed to transfer transaction-related information from client to server:
+
+* *server URI* - a call to the RemotingRemoteTransactionProvider method
+getPeerHandle(URI, SSLContext, AuthenticationConfiguration) returns a RemotingRemoteTransactionPeer appropriate
+for that URI and its authorization and encryption credentials (see below)
+* *connection* - a call to RemotingRemoteTransactionPeer method getPeerIdentity() returns
+a ConnectionPeerIdentity (i.e. a Connection) to the URI using the authorization and encryption credentials
+* *channel* - a call to RemotingRemoteTransactionPeer method getOperations(Connection c) returns a RemotingOperations
+interface (implemented by TransactionClientChannel), used to control transactions on that remote server
+* *transaction* - a call to RemotingOperations method begin() returns a SimpleTransactionControl, which holds
+a transaction id and status, used to control a specific transaction
+
+Therefore, the Wildfly Transaction Client supports multiple transactions using the same TransactionClientChannel,
+each differentiated by transaction id.
+
+The creation of JBoss Remoting Connections from client to server necessarily involves security considerations relating
+to authentication and authorization. In this case, thread-local security configuration is obtained for the transaction
+from security-related Contextuals, such as Contextual<AuthenticationContext>. These are discussed in more detail
+in section <<related-issues>>.
+
+=== Example of remote transaction use
+
+In order to use the framework classes described above to allow remote invocations to benefit from transaction semantics,
+the classes need to be employed by a higher-level framework, such as EJB client or Naming client, in a specific
+way. We provided a high-level overview of this specific way in the design overview, but lower-level details were left
+out. In this section, we shall try to be more precise about what actually needs to be done.
+
+We shall organize the presentation into what needs to happen on the client, followed by what needs to happen
+on the server.
+
+==== Client side
+
+. Use the RemoteTransactionContext to obtain a RemoteUserTransaction and call its begin() method to mark the start of
+the transaction scope
+[source]
++
+----
+  // get a user transaction
+  RemoteUserTransaction remoteUserTransaction = RemoteTransactionContext.getInstance().getUserTransaction();
+  // start the transaction scope
+  remoteUserTransaction.begin();
+----
++
+. When sending an invocation request, send the transaction id plus the transaction timeout of the current transaction
+with the invocation
+request
+[source]
++
+----
+Channel channel;            // communication channel for message from client to server
+URI uri;                    // URI of server
+DataOutput output;
+
+// get the RemoteTransaction associated with the current thread
+RemoteTransaction remoteTransaction = ContextTransactionManager.getTransaction();
+
+// set the location of this RemoteTransaction, this has a side effect of creating a transaction channel to the server
+remoteTransaction.setLocation(uri);
+
+// create a transaction id and add it as metadata
+SimpleIdResolver ir = remoteTransaction.getProviderInterface(SimpleIdResolver.class);
+if (ir == null) throw Logs.TXN.cannotEnlistThread();
+final int id = ir.getTransactionId(channel.getConnection());
+output.writeInt(id);
+
+// get the transaction timeout and write it as metadata
+int transactionTimeout = remoteTransaction.getEstimatedRemainingTime();
+if (transactionTimeout == 0) throw Logs.TXN.outflowTransactionTimeoutElapsed(remoteTxn)
+PackedInteger.writePackedInteger(output, transactionTimeout)
+----
++
+. When receiving an invocation response, process as usual
+[source]
++
+----
+// in the case of RemoteTransactions, nothing to do when receiving response
+----
+. After all invocations have been processed, use the RemoteUserTransaction to call commit() or rollback()
+[source]
++
+----
+  // commit the transaction
+  remoteUserTransaction.commit();
+----
++
+
+At this stage, all work in transaction scope initiated by the client and processed on the server will have
+been committed or rolled back on the server.
+
+==== Server side
+
+. Start the RemotingTransactionServer for the Connection used by the client and server
+[source]
++
+----
+// start the per-connection remote transaction server using the RemoteTransactionService
+RemotingTransactionService transactionService = new RemotingTransactionService();
+RemotingTransactionServer transactionServer = transactionService.getServerForConnection(this, connection);
+transactionServer.start()
+----
++
+. When receiving an invocation request, use the method getOrBeginTransaction() of the RemotingTransactionServer to
+create a server-side representation of the client-side transaction.
+[source]
++
+----
+DataInput input;
+// read the transaction id and timeout from the request
+final int id = input.readInt();
+final int timeout = input.readPackedInteger();
+// use the RemotingTransactionServer to create the local representation
+final Transaction transaction  = transactionServer.getOrBeginTransaction(id, timeout);
+// set up the ImportResult
+ImportResult<Transaction> importResult = new ImportResult<Transaction>(transaction, SubordinateTransactionControl.EMPTY, false)
+----
++
+The ImportResult represents the "imported" version of the RemoteTransaction on the client. This wil allow the server
+to process the invocation in transaction scope.
+
+. Process the invocation in transaction scope
+. When sending back an invocation response, no special action required
+[source]
++
+----
+// send response as usual
+----
++
+. When processing a transaction completion message (commit/rollack), use the ContextTransactionManager to complete
+the transaction
+[source]
++
+----
+// completion of the transaction handled by TransactionServerChannel
+----
++
+
+Note that transaction completion in the case of RemoteTransaction is handled automatically by the
+TransactionServerChannel: once the RemoteUserTransaction on the client has commit() or rollback() invoked, this
+will cause the RemoteTransaction state machine to use the TransactionClientChannel instance on the client to forward
+the command to the corresponding TransactionServerChannel instance on the server, which will then lookup the
+LocalTransaction corresponding to the transaction id sent with the command and call commit() or rollback() to complete
+the transaction.
+
+=== Final word
+
+This section provided an introduction to the use of RemoteTransactions in the Wildfly Transaction Client library. To
+get a better understanding of how these mechanisms are used in practice, please see the EJB Client library or
+the Wildfly Naming client library for examples.
+
+We now move on to the case of LocalTransactions.
+
+== Local Transactions
+
+In the context of the Wildfly Transaction Client, LocalTransactions cater to the use case where an application
+client within a deployment on a server A, with a transaction manager, needs to impose transactional semantics on
+a set of one or more remote invocations on a server B. In Wildfly, a Server B can be made available from a server A
+by defining a *remote outbound connection* on server A pointing to server B. As before, we refer to the client
+application as a server-client.
+
+Due to the presence now of a transaction manager on the client, the transaction scope may be controlled either
+via a container-managed LocalTransaction or a user-managed LocalUserTransaction.
+
+Further, if the transaction manager supports distributed (XA) transactions, the client application is not limited to
+invoking methods on a single server B; in other words, distributed (XA) transactions are supported when using
+LocalTransactions from a server-client. This fact will account for the differences in the way LocalTransactions
+need to be handled versus the way RemoteTransactions are handled, as described previously.
+
+=== APIs
+
+The key APIs involved in the use of LocalTransactions are represented by the following classes and interfaces:
+
+==== Server-client side APIs
+
+LocalUserTransaction::  This class implements the interface UserTransaction and is used by the server-client to
+drive the server-client-side transaction scope (e.g. begin(), commit(), rollback()) when application-managed
+transactions are required (as opposed to container-managed transactions).
+LocalTransactionContext:: This class is a Contextual which the server-client uses to obtain a LocalUserTransaction
+as well as to perform certain operations required when adding metadata to invocation messages from the server-client
+to the server.
+ContextTransactionManager:: This class is used on the server-client to manage the association between threads and
+the LocalTransactions they use, as well as on the server to manage the association between invocation processing
+threads and the LocalTransactions they use. It can also be used to set a transaction timeout on a per-transaction
+basis or mark the transaction as available or not.
+
+==== Server side APIs
+LocalTransaction:: This class is used to represent the server-client-side part of a transaction, as well as the
+server-side part. Generally, this class is used to wrap native transactions on both the
+server-client and the server.
+LocalTransactionProvider:: This class is used to provide access to the native TransactionManager and its various
+ancillary functions (e.g. transaction recovery) on the server-client-side as well as the server-side.
+Such access is necessary when creating a new LocalTransaction, for example.
+
+=== Communication between Server-client and server
+
+The Wildfly Transaction Client library was intended to be used with a variety of communication protocols and has
+an SPI which allows tailoring the framework to use different protocols. At the moment, the JBoss Remoting "remote"
+protocol and the HTTP protocol are supported.
+
+These SPI classes together provide the framework with the ability to send transaction-related messages from
+server-client to server on a separate communication channel, whether that be based on JBoss Remoting or HTTP.
+To keep the discussion simple, we assume in what follows that we are using the JBoss Remoting "remote" protocol.
+
+In the case of LocalTransactions, server-client to server communication is facilitated by the following classes and
+interfaces:
+
+==== Server-client side
+SubordinateXAResource:: This class implements the interface XAResource and is used by a server-client XA-enabled
+transaction manager to represent a remote server involved in an XA transaction. Once enlisted with a server-client
+LocalTransaction, it guarantees that the remote server will participate in the Two Phase Commit protocol run
+at transaction completion time.
+XAOutflowedResources:: This class represents the set of SubordinateXAResources for a given LocalTransaction, as
+well as providing helper methods to generate metadata for invocation messages.
+RemoteTransactionProvider:: This class provides access to RemoteTransactionPeer for JBoss Remoting-based communication
+between the server-client and server. Implementations are provided on a per-scheme basis.
+The RemotingRemoteTransactionProvider provides the implementation for the "remote" scheme.
+RemoteTransactionPeer:: This interface represents operations and interfaces required to control transaction state
+on the server from a LocalUserTransaction on the server-client. In particular, it provides methods for obtaining a
+SubordinateTransactionControl instance as well as the set of indoubt Xids that may be recovered from a failed server.
+SubordinateTransactionControl:: This interface provides methods which allow remotely controlling a subordinate
+transaction on a remote server from a server-client (i.e. it allows controlling the transaction state of the remote
+servers enlisted in an XA transaction).
+TransactionClientChannel:: This class is the server-client-side JBoss Remoting channel used to send transaction-related
+operations from server-client to server.
+
+==== Server side
+RemotingTransactionService:: This class implements a Wildfly service and is used to allow server-clients to establish
+authenticated connections to the Wildfly server for the purpose of managing transactions.
+RemotingTransactionServer:: This class is used on the server to accept and handle operations sent by the
+SimpleTransactionControl over a JBoss Remoting channel. One RemotingTransactionServer instance will be used
+per connection to the server. This class also aids in the creation and management of LocalTransaction instances which
+represent the server-side part of a server-client-side LocalUserTransaction.
+TransactionServerChannel:: This class is a server-side JBoss Remoting channel used to receive transaction-related
+operations sent from the server-client to the server and hand them off to the SubordinateTransactionControl.
+
+We can identify how these classes cooperate to obtain the connections, channels and transaction control structures
+needed to transfer transaction-related information from server-client to server:
+
+* *server URI* - a call to the RemotingRemoteTransactionProvider method
+getPeerHandleForXA(URI, SSLContext, AuthenticationConfiguration) returns a RemotingRemoteTransactionPeer appropriate
+for that URI and its authorization and encryption credentials
+* *connection* - a call to RemotingRemoteTransactionPeer method getPeerIdentityXA() returns
+a ConnectionPeerIdentity (i.e. a Connection) to the URI using the authorization and encryption credentials
+* *channel* - a call to RemotingRemoteTransactionPeer method getOperationsXA(Connection c) returns a RemotingOperations
+interface (implemented by TransactionClientChannel)
+* *transaction* - a call to RemotingOperations method lookupXid(Xid) returns a SubordinateTransactionControl,
+which holds a transaction Xid and status, and provides access to XA transaction completion methods (i.e. prepare, commit,
+rollback, etc)
+
+As in the standalone client case, the Wildfly Transaction Client supports multiple XA transactions using
+the same TransactionClientChannel, each differentiated by transaction id.
+
+
+=== Example of local transaction use
+
+The following example scenario describes the case of a container-managed transaction on the server-client side.
+The details for a user-managed LocalTransaction are similar.
+
+==== Client side
+
+. The container will use the ContextTransactionManager to call begin() to create a new LocalTransaction and
+associate it with the current thread
+[source]
++
+----
+// container creates a new LocalTransaction and associates it with the current thread
+ContextTransactionManager transactionManager = ContextTransactionManager.INSTANCE;
+transactionManager.begin();
+----
++
+. When sending an invocation request, ensure that the request URI is enlisted as an XA resource and store the
+XAResourceHandle on the client for later use
+[source]
++
+----
+// sending request to server at uri
+final URI uri
+
+// use the TransactionManager to get the LocalTransaction associated with the current thread
+final ContextTransactionManager transactionManager = ContextTransactionManager.INSTANCE;
+final LocalTransaction localTransaction = transactionManager.getTransaction();
+
+// use the LocalTransactionContext to outflow the transaction and obtain the XAOutflowHandle
+final LocalTransactionContext transactionContext = LocalTransactionContext.getInstance();
+final XAOutflowHandle outflowHandle = transactionContext.outflowTransaction(uri, localUserTransaction);
+----
++
+. When sending an invocation request, send the transaction id plus the transaction timeout with the invocation request
+[source]
++
+----
+DataOutput output;
+
+// add metadata representing the Xid to the request
+Xid xid = outflowHandle.getXid();
+
+// write the Xid format
+PackedInteger.writePackedInteger(output, xid.getFormatId());
+// write the Xid global transaction id
+final byte[] gtid = xid.getGlobalTransactionId();
+output.writeByte(gtid.length);
+output.write(gtid);
+// write the Xid ranch qualifier
+final byte[] bq = xid.getBranchQualifier();
+output.writeByte(bq.length);
+output.write(bq);
+
+// add metadata representing the transaction timeout
+final int timeout = outflowHandle.getRemainingTime();
+if (timeout == 0) throw Logs.TXN.outflowTransactionTimeoutElapsed(localTransaction)
+PackedInteger.writePackedInteger(output, timeout);
+----
++
+. When receiving an invocation response, verify the enlistement of the XAResource using the XAResourceHandle
+[source]
++
+----
+XAOutflowHandle outflowHandle;
+// receiving response - verify enlistment
+final int importType = inputStream.readUnsignedByte();
+if (importType == 0) {
+  outflowHandle.forgetEnlistment();
+} else if (importType == 1) {
+  outflowHandle.verifyEnlistment();
+} else if (importType == 2) {
+  outflowHandle.nonMasterEnlistment();
+}
+----
++
+The enlistment of the XAResources on the server-client depends whether or not a new LocalTransaction was created on
+the server, which is known through the use of the import type value sent with the response.
+
+. After all invocations have been processed, the container will use the ContextTransactionManager to complete
+the transaction by calling commit() or rollback()
+[source]
++
+----
+// container completes transaction (e.g. calls commit() on the ContextTransactionManager)
+ContextTransactionManager transactionManager = ContextTransactionManager.INSTANCE;
+transactionManager.commit();
+----
++
+This last action will initiate a Two Phase Commit protocol execution which will involve all SubordinateXAResource
+instances which were enlisted with the LocalTransaction. At this point in time, the server-client to server
+communication channels will be used to transmit the Two Phase Commit protocol commands (c.f. prepare(), commit(),
+rollback()) to the servers participating in the distriubuted transaction.
+
+
+==== Server side
+
+. Start the RemoteTransactionServer for the Connection between the server-client and the server.
+[source]
++
+----
+// start the per-connection remote transaction server using the RemotingTransactionService
+RemotingTransactionService transactionService = new RemotingTransactionService();
+RemotingTransactionServer transactionServer = transactionService.getServerForConnection(this, connection);
+transactionServer.start()
+----
++
+. When receiving an invocation request, get the LocalTransactionContext and call the method findOrImportTransaction
+to create a server-side representation of the server-client-side transaction
+[source]
++
+----
+DataInput input ;
+RemoteTransactionServer transactionServer;
+
+// read the transaction format
+final int fmt = PackedInteger.readPackedInteger(input);
+// read the global transaction id
+final byte[] gtid = new byte[input.readUnsignedByte()];
+input.readFully(gtid);
+// read the branch qualifier
+final byte[] bq = new byte[input.readUnsignedByte()];
+input.readFully(bq);
+// create the Xid representation
+SimpleXid xid = new SimpleXid(fmt, gtid, bq);
+
+// read the timeout
+final int timeout = PackedInteger.readPackedInteger(input);
+
+// import the XA transaction
+final ImportResult<Transaction> importResult = transactionServer.getTransactionService().getTransactionContext().findOrImportTransaction(xid, timeout);
+----
++
+The ImportResult represents the "imported" version of the LocalTransaction on the server-client. This will allow
+the server to process the invocation in transaction scope.
+
+. Process the invocation in transaction scope
+. When sending back an invocation response, add as metadata an int value indicating the transaction import type
+[source]
++
+----
+DataOutput output ;
+final ImportResult<Transaction> importResult = ...
+final int txnCmd ;
+// using the ImportResult, identify the transaction import type (1 => new transaction, 2 = existing transaction)
+if (importResult.isNew()) {
+  txnImportType = 1;
+} else {
+  txnImportType = 2;
+}
+output.writeInt(txnImportType);
+----
++
+This will be used by the server-client to verify enlistment for the XAResource for this transaction Xid.
+
+. When processing a transaction completion message, allow the TransactionServerChannel to participate in the
+Two Phase Commit protocol
+[source]
++
+----
+// completion of the transaction handled during Two Phase Commit protocol execution
+----
++
+Note that transaction completion in the case of LocalTransaction is handled automatically by the
+TransactionServerChannel: once the LocalTransaction on the server-client has prepare() and commit() or rollback()
+invoked by the ContextTransactionManager, this will cause the SubordinateTransactionControl instances for the enlisted
+SubordinateXAResources to use their TransactionClientChannel instance on the server-client to forward
+the command to the corresponding TransactionServerChannel instance on the server(s), which will then lookup the
+LocalTransaction corresponding to the transaction id sent with the command and call commit() or rollback() to complete
+the transaction.
+
+
+=== Final word
+
+This section provided an introduction to the use of LocalTransactions in the Wildlfy Transaction Client library. To
+get a better understanding of how these mechanisms are used in practice, please see the EJB Client library or
+the Wildfly Naming client library for examples.
+
+[#related-issues]
+== Related Issues
+
+In this section, we discuss some issues related to the communication which the transaction client depends on
+to connect the client and server.
+
+=== Use of JBoss Remoting and Elytron
+
+As described in the section <<design-constraints>>, the client and server need to transfer transaction-related
+information between themselves during transaction processing. Further, this communication channel needs to be
+independent of the communication channel used by the remote invocation mechanism itself.
+
+JBoss Remoting is a library which provides such communication using three key abstractions: Endpoints,
+Connections and Channels.
+
+Endpoints represent configured endpoints of the communication channel, one on the client side and one on
+the server side. Configuration involves defining timeouts and other parameters.
+
+Connections represent authenticated communication pathways between a client Endpoint and a server Endpoint
+at a given URI.
+
+Channels represent typed message streams built on top of a connection, where a Channel type represents the set of
+protocol messages that may be sent across the channel. These typed message streams are registered in the Endpoint as
+named Remoting "services". For example, the Wildfly Transaction Client registers a service of type "txn" which
+defines all of the protocol messages used by the Wildfly Transaction Client. In terms of the earlier discussion,
+the RemotingTransactionService is responsible for configuring the Endpoint used on the server-side and
+registering the "txn' service with that Endpoint.
+
+As with the representation of transactions in a distributed context, when creating a communication channel between
+client and server, we have a client-side part and a server-side part. The TransactionClientChannel is a per-connection
+class on the client which is responsible for sending of all transaction-related operations,
+both non-XA (c.f begin(), commit(), rollback()) and XA (c.f. start(), end(), beforeCompletion(), ..., rollback()),
+as protocol mesaages. The server-side counterpart is the TransactionServerChannel, which is responsible for receiving
+those protocol messages and translating them into coresponding actions on the LocalTransaction instances on the
+server-side.
+
+In both the Wildfly Transaction Client and Wildfly itself, Elytron is a library which provides authentication,
+authorization and other security-related services. JBoss Remoting uses Elytron to provide authentication at
+the Connection level, by way of security-related configuration on both the client-side and the server-side.
+
+In Elytron, three key abstractions are the AuthenticationConfiguration, SSLContext and AuthenticationContext.
+
+An AuthenticationConfiguration is a set of security-related inforation (e.g. username, password) used to constrain
+successful authentication of a client to a server. An SSLContext is a similar set of information used to allow
+the establishment of encryption at the level of a Connection between a client and a server.
+
+Finally, an AuthenticationContext is a Contextual which represents a bundle of security credentials and options
+which allow obtaining AuthenticationConfigurations and SSLContexts on a per-thread basis, based on sets of rules
+mapping URIs and their context-paths to specific AuthenticationConfigurations and SSLContexts.
+
+=== Configuration
+
+Configuration of JBoss Remoting and Elytron for use with the Wildfly Transaction Client involves server-side
+configuration as well as client-side configuration.
+
+On the server, this involves configuring the JBoss Remoting Endpoint via the ejb3 subsystem as well as
+the Elytron subsystem and is beyond the scope of this document. Please refer to the
+{wildfly-docs}Admin_Guide.html[Wildfly Admin Guide] for further information.
+
+On the client-side, all client configuration is via the wildfly-client.xml configuration file. Use of the
+wildfly-client.xml file for configuration can be found in the
+{wildfly-docs}#Client_Guide.html[Wildfly Client Guide].
+
+==== Example
+
+Assume we require client-side configuration where:
+
+* JBoss Remoting connections used by the Wildfly Transaction Client have prescibed read and write timeouts
+* Elytron security authentication is based on the server having a user called txnClient with password txnPass
+
+Here is the corresponding wildfly-client.xml file which satisifes these requirements:
+
+[source, xml]
+<configuration>
+...
+    <endpoint xmlns="urn:jboss-remoting:5.0">
+        <connections>
+            <connection destination="remote+http://10.20.30.40:8080" read-timeout="50" write-timeout="50"/>
+        </connections>
+    </endpoint>
+...
+    <authentication-client xmlns="urn:elytron:1.0">
+        <authentication-rules>
+            <rule use-configuration="all"/>
+        </authentication-rules>
+        <authentication-configurations>
+            <configuration name="all">
+                <set-user-name name="txnClient"/>
+                <credentials>
+                    <clear-password password="txnPass"/>
+                </credentials>
+            </configuration>
+        </authentication-configurations>
+    </authentication-client>
+ ...
+</configuration>
+
+The wildfly-client.xml file needs to appear on the client classpath for these options to take effect.
+
+
+
+
+
+
+
+
+
+
