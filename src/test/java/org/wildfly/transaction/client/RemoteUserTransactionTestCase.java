@@ -17,15 +17,18 @@
  */
 package org.wildfly.transaction.client;
 
+import java.net.URI;
+import java.nio.file.Path;
+
 import jakarta.transaction.RollbackException;
 import jakarta.transaction.Status;
 import jakarta.transaction.SystemException;
+import jakarta.transaction.Transaction;
 import org.jboss.byteman.contrib.bmunit.BMScript;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
-
-import jakarta.transaction.Transaction;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,11 +36,8 @@ import org.junit.runner.RunWith;
 import org.wildfly.transaction.client.provider.jboss.TestTransactionProvider;
 import org.wildfly.transaction.client.provider.remoting.RemotingTransactionServer;
 
-import java.net.URI;
-import java.nio.file.Path;
-
 /**
- * Checks the functionality of the RemoteUserTransacton, that is the transaction created by the client that runs outside the application server.
+ * Checks the functionality of the RemoteUserTransaction, that is the transaction created by the client that runs outside the application server.
  */
 @RunWith(BMUnitRunner.class)
 @BMScript(dir="target/test-classes")
@@ -69,6 +69,13 @@ public class RemoteUserTransactionTestCase {
 
     @After
     public void clean() throws Exception {
+        // clean up any lingering transaction
+        try {
+            RemoteUserTransaction rut = RemoteTransactionContext.getInstance().getUserTransaction();
+            rut.rollback();
+        } catch (Exception ignore) {
+        }
+
         dummyServer.stop();
     }
 
@@ -97,9 +104,7 @@ public class RemoteUserTransactionTestCase {
         rt.setLocation(new URI("remote://localhost:12345"));
 
         //wait for Byteman to intercept data
-        try {
-            Thread.sleep(100);
-        } catch(Exception ignored){}
+        waitForByteman();
 
         mockEJBInvocation();
 
@@ -135,9 +140,7 @@ public class RemoteUserTransactionTestCase {
         rt.setLocation(new URI("remote://localhost:12345"));
 
         //wait for Byteman to intercept data
-        try {
-            Thread.sleep(100);
-        } catch(Exception ignored){}
+        waitForByteman();
 
         mockEJBInvocation();
 
@@ -172,10 +175,8 @@ public class RemoteUserTransactionTestCase {
         //transaction have to be resolved
         rt.setLocation(new URI("remote://localhost:12345"));
 
-        //lets wait for Byteman to intercept data
-        try {
-            Thread.sleep(100);
-        } catch(Exception ignored){}
+        //wait for Byteman to intercept data
+        waitForByteman();
 
         mockEJBInvocation();
 
@@ -198,12 +199,27 @@ public class RemoteUserTransactionTestCase {
 
 
     /**
-     * If no invocations are perfomed, then client optimizes by not performing any transaction related invocations on the server.
+     * If no invocations are performed, then client optimizes by not performing any transaction related invocations on the server.
      * This method is needed to circumvent that for the test purposes.
      *
-     * @throws javax.transaction.SystemException
+     * @throws SystemException on errors
      */
     private void mockEJBInvocation() throws SystemException {
         remotingTransactionServer.getOrBeginTransaction(transactionId, 5000);
+    }
+
+    private static void waitForByteman() {
+        try {
+            for (int i = 0; i < 10 && remotingTransactionServer == null; i++) {
+                Thread.sleep(200);
+            }
+        } catch (Exception ignored) {
+        }
+
+        // We've seen cases where remotingTransactionServer has not been injected
+        // to this test class by byteman, e.g., when running on Windows with jdk 17.
+        // So proceed only when remotingTransactionServer has been set successfully.
+        System.out.printf("remotingTransactionServer set by byteman: %s%n", remotingTransactionServer);
+        Assume.assumeNotNull(remotingTransactionServer);
     }
 }
