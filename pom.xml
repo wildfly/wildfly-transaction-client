@@ -101,7 +101,6 @@
                             <outputDirectory>${project.build.directory}/generated-docs</outputDirectory>
                             <preserveDirectories>true</preserveDirectories>
                             <backend>html5</backend>
-                            <sourceHighlighter>coderay</sourceHighlighter>
                             <attributes>
                                 <imagesdir>./images</imagesdir>
                                 <icons>font</icons>
@@ -109,6 +108,7 @@
                                 <idprefix/>
                                 <idseparator>-</idseparator>
                                 <docsinfo1>true</docsinfo1>
+                                <source-highlighter>coderay</source-highlighter>
                             </attributes>
                         </configuration>
                     </execution>
