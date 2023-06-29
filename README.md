@@ -13,7 +13,12 @@ $ mvn clean install
 
 ## Issue Tracking
 
-Bugs and features are tracked within the WildFly Transaction Client Jira project at https://issues.redhat.com/projects/https://issues.redhat.com/projects/WFTC
+Bugs and features are tracked within the WildFly Transaction Client Jira project at https://issues.redhat.com/projects/WFTC
+
+## Docs
+
+[WildFly Transaction Client User Documentation](https://github.com/wildfly/wildfly-transaction-client/blob/master/docs/src/main/asciidoc/community-documentation.adoc) within this project
+provides an overview of this library and various usage scenarios.
 
 ## Contributions
 
