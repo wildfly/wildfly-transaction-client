@@ -754,6 +754,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
          * @return the built provider (not {@code null})
          * @throws IllegalArgumentException if a required property is {@code null}
          */
+        @SuppressWarnings("deprecation")
         public JBossLocalTransactionProvider build() {
             ExtendedJBossXATerminator extendedJBossXATerminator = this.extendedJBossXATerminator;
             TransactionManager transactionManager = this.transactionManager;
