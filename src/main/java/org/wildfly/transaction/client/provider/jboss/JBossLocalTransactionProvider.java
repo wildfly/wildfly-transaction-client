@@ -49,6 +49,7 @@ import jakarta.transaction.TransactionManager;
 import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.ImportedTransaction;
 import org.jboss.tm.TransactionImportResult;
+import org.jboss.tm.XAResourceRecovery;
 import org.jboss.tm.XAResourceRecoveryRegistry;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
@@ -77,6 +78,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
     private final ConcurrentSkipListSet<XidKey> timeoutSet = new ConcurrentSkipListSet<>();
     private final ConcurrentMap<SimpleXid, Entry> known = new ConcurrentHashMap<>();
     private final FileSystemXAResourceRegistry fileSystemXAResourceRegistry;
+    private final XAResourceRecovery xaResourceRecovery;
 
     JBossLocalTransactionProvider(final ExtendedJBossXATerminator ext, final int staleTransactionTime, final TransactionManager tm,
                                   final XAResourceRecoveryRegistry registry, final Path xaRecoveryDirRelativeToPath) {
@@ -94,7 +96,20 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
         this.fileSystemXAResourceRegistry = new FileSystemXAResourceRegistry(this, xaRecoveryDirRelativeToPath);
         XAResourceRegistryProviderHolder.register(fileSystemXAResourceRegistry::getInDoubtXAResources);
-        registry.addXAResourceRecovery(fileSystemXAResourceRegistry::getInDoubtXAResources);
+        xaResourceRecovery = fileSystemXAResourceRegistry::getInDoubtXAResources;
+        registry.addXAResourceRecovery(xaResourceRecovery);
+    }
+
+    /**
+     * Remove the registered xaResourceRecovery from the registry passed as parameter.
+     * Allow the consumer to remove the xaResourceRecovery from the registry.
+     * If not removed, the xaResourceRecovery is held by XAResourceRegistryProviderHolder.INSTANCE
+     * and it cannot be garbage collected (i.e. during consumer's stop)
+     *
+     * @param registry XAResourceRecovery registry
+     */
+    public void removeXAResourceRecovery(XAResourceRecoveryRegistry registry) {
+        registry.removeXAResourceRecovery(xaResourceRecovery);
     }
 
     /**
