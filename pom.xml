@@ -31,7 +31,7 @@
 
     <groupId>org.wildfly.transaction</groupId>
     <artifactId>wildfly-transaction-client</artifactId>
-    <version>3.0.2.Final-SNAPSHOT</version>
+    <version>3.0.2.Final</version>
     <name>WildFly Transaction Client</name>
     <description>Client library for applications using transactions with Wildfly - Jakarta EE Variant</description>
 
