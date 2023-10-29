@@ -673,6 +673,143 @@ This section provided an introduction to the use of LocalTransactions in the Wil
 get a better understanding of how these mechanisms are used in practice, please see the EJB Client library or
 the Wildfly Naming client library for examples.
 
+== Transaction Recovery
+
+In this section, we discuss the features of the Wildfly Transaction Client library used to support XA transaction recovery.
+
+=== What is transaction recovery and why do we need it?
+
+Transactions which do productive work and but then fail to complete can do so for various reasons: the transaction manager
+on the initiating host may fail, a resource manager on a participating host may fail, or a communication link between
+transaction manager and resource manager may fail. Transactions which do not complete may continue to hold locks on
+resources and may cause data inconsistencies if left unattended. Transaction recovery is a process by which the
+transaction subsystem attempts to bring such non-completed transactions to a completed state after the initial failure
+has been resolved.
+
+Transaction recovery can be fully automated, or require manual intervention. For a given transaction, the type of
+recovery possible depends on the nature of the failures involved.
+
+Heuristic failures describe cases where there is disagreement between what the transaction manager decided should
+happen and what one or more resource managers actually did: for example, during 2PC, a transaction manager
+decided commit, but one resource manager, after unexpectedly losing connection, decided to rollback. Heuristic failures
+require manual intervention to be fixed and are beyond the scope of this discussion. For more information, see X.
+
+Non-heuristic failures, where there is no underlying inconsistency between the actions of the transaction manager and
+its participnts, are candidates for automated recovery. For example, a transaction manager decides commit, but simply
+loses comminucation with one of the participating resource managers before being able to bring the transaction to
+completion. In this case, if enough information is preserved, once the communication loss is restored, a special
+"recovery manager" could be activated to use that information to bring the non-completed transaction to completion
+and free up any used resources.
+
+The Wildfly transaction subsystem has a recovery manager which will recover such "in-doubt" transactions: these
+are transactions which did not reach completion, which are not of the heuristic type, and which can benefit from
+automated transaction recovery. To support this, the Wildfly transaction client library was designed to be able to
+participate in XA transaction recovery. In the following sections, we briefly outline how the Wildfly transaction
+client provides support for transaction recovery.
+
+WARNING: Transaction recovery requires the presence of a transaction manager which supports transaction recovery
+by way of a recovery manager. Therefore, transaction recovery is only available for the XA transaction scenario
+in which a server-client is interacting with one or more subordinate XA resources; in other words, the
+LocalTransaction scenario.
+
+=== APIs
+The key APIs used to facilitate transaction recovery are represented by the following classes and interfaces:
+
+==== Server-client side
+
+XAResourceRegistry:: This class is used to represent a transaction log for a given XA transaction. There is once
+such instance per XA transaction. The registry is used by the SubordinateXAResource as it enlists XA resources and
+executes the stages of the transaction lifecycle.
+SubordinateXAResource:: The class is used by the transaction manager to interact with its enlisted subordinate XA
+resources. It implements XAResource interface which includes operations used during recovery.
+XARecoverable:: This convenience interface defines a subset of the XAResource interface used specifically for
+transaction recovery workflows.
+
+==== Server side
+
+LocalTransactionContext:: This class is used to obtain access to the XATerminator and XARecoverable interfaces
+ContextXATerminator:: This class is used for transaction completion and crash recovery flows. It implements the
+XATerminator interface by delegating calls to the LocalTransactionContext.
+XAImporter:: This class must be implemented by transaction providers which support transaction inflow. It is implemented
+by the JBossLocalTransactionProvider.
+XARecoverable:: This convenience interface defines a subset of the XATerminator interface, used specifically for
+transaction recovery workflows.
+
+=== Features used to facilitate transaction recovery
+
+Automated transaction recovery relies on three key components:
+
+* a recovery manager, to carry out the actions required to effect transaction recovery
+* transaction logs containing information about the transaction, which was recorded to stable storage by the
+transaction participants during transaction execution
+* transaction-recovery related commands to obtain the current status information of transaction participants
+
+As usual, because the transaction participants are not colocated, information needs to be logged on both the
+server-client side as well as the server side. In the case of the Wildfly transaction client, SubordinateXAResources
+are used to log information about transaction acitivity on the server-client side, and LocalTransactionProviders are
+used to log information about transaction activity on the server side.
+
+Once the failure which prevented transaction completion has been resolved, the recovery manager is started
+on the node which initiated the transaction (i.e. the server-client in this example) and the recovery manager
+will do the following for each non-completed transaction from that node (there may be more than one):
+
+* locate the transaction log directory on the server-client and obtain the transaction log files for the *indoubt*
+transactions
+* for each indoubt transaction, use the information in the transaction log file to determine which XA resources were
+involved in the transaction and identify the SubordinateXAResource of each of the participants in the transaction
+* for each such SubordinateXAResorce, make use of the XARecoverable interface to contact each resource manager
+to find out the status of the resource at time of faiure and take corrective action to either complete or abort the
+non-completed transaction.
+
+The XARecoverable interface of the SubordinateXAResource has the following methods:
+----
+public interface XARecoverable {
+  Xid[] recover(int flag, String parentName) throws XAException;
+  void commit(Xid xid, boolean onePhase) throws XAException;
+  void forget(Xid xid) throws XAException;
+}
+----
+
+The recover() method is used by the recovery manager to contact the associated resource manager and find nut which
+transaction branches held by the resource manager on the server node are available for recovery. Once the status is
+known, the commit() and forget() methods are used by the recovery coordinator in the same way to complete the
+transaction, either by directing the resource manager to commit the work logged by the LocalTransactionProvider or
+to forget the work (effectively complete the transaction by rolling back the changes).
+
+Once recovery of a transaction has been completed, the recovery-related log information held by the transaction manager
+(on the server-client) and the resource manager (on the server) is removed and the transaction is now either committed
+or rolled back.
+
+The contents of the log file are represented by an XAReoveryRegistry object, one for each transaction created. This
+log is populated, during certain calls to the SubordinateXAResource by the transaction manager during transaction
+execution. Specifically during the start(), prepare(), commit() and rollback() calls that the transaction manager makes
+on each XA resource participant.
+
+==== How are the logs generated?
+
+When the transaction is created, a corresponding XAResourceRegistry instance is craeted to represent the server-client
+transaction log.
+
+The log related activities for each transaction manager method call are as follows:
+
+* *start()* - when the start() method is called, XAResourceRegistry.addResource() is used to add an entry for the
+SubordinateXAResource to the log
+* *prepare()* - when the prepare() method is called, XAResourceRegistry.removeResource() is used to remove the entry
+for the SubordinateXAResource from the log of the transaction brach was read only; otherwise, the entry is left in the log
+* *commit()* - when the commit() method is called, XAResourceRegistry.removeResource() is used to remove the entry
+for the SubordinateXAResource from the registry upon successful commit; if an exception was raised,
+XAResourceRegistry.indoubt() addsa a record to the log marking the resource as indoubt
+* *rollback()*  - when the commit() method is called, XAResourceRegistry.removeResource() is used to remove the entry
+for the SubordinateXAResource from the registry upon successful commit; if an exception was raised,
+XAResourceRegistry.indoubt() addsa a record to the log marking the resource as indoubt
+
+=== Example of transaction recovery when transaction completion succeeeds
+
+Lets take an example of a server-client method in transaction scope which makes invocations on two invocation targets.
+
+=== Example of transaction recovery when transaction completion fails
+
+
 [#related-issues]
 == Related Issues
 
