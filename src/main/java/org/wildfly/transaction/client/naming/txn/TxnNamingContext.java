@@ -52,13 +52,19 @@ class TxnNamingContext extends AbstractContext {
     private final ProviderEnvironment providerEnvironment;
     private final RemoteUserTransaction remoteUserTransaction;
 
-    TxnNamingContext(final NamingProvider namingProvider, final ProviderEnvironment providerEnvironment) {
+    private final TxnNamingContextFactory.AccessChecker accessChecker;
+
+    TxnNamingContext(final NamingProvider namingProvider, final ProviderEnvironment providerEnvironment, final TxnNamingContextFactory.AccessChecker accessChecker) {
         this.namingProvider = namingProvider;
         this.providerEnvironment = providerEnvironment;
+        this.accessChecker = accessChecker;
         remoteUserTransaction = getRemoteUserTransaction();
     }
 
     protected Object lookupNative(final Name name) throws NamingException {
+        if (accessChecker != null) {
+            accessChecker.checkAccessAllowed();
+        }
         final String str = name.get(0);
         switch (str) {
             case USER_TRANSACTION: {
