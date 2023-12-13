@@ -34,11 +34,23 @@ import org.wildfly.naming.client.util.FastHashtable;
  */
 @MetaInfServices
 public final class TxnNamingContextFactory implements NamingContextFactory {
+
+
+    private static AccessChecker accessChecker = null;
+
     public boolean supportsUriScheme(final NamingProvider namingProvider, final String nameScheme) {
         return nameScheme != null && nameScheme.equals("txn");
     }
 
     public Context createRootContext(final NamingProvider namingProvider, final String nameScheme, final FastHashtable<String, Object> env, final ProviderEnvironment providerEnvironment) throws NamingException {
-        return new TxnNamingContext(namingProvider, providerEnvironment);
+        return new TxnNamingContext(namingProvider, providerEnvironment, accessChecker);
+    }
+
+    public static void setAccessChecker(final AccessChecker accessChecker) {
+        TxnNamingContextFactory.accessChecker = accessChecker;
+    }
+
+    public interface AccessChecker {
+        void checkAccessAllowed() throws NamingException;
     }
 }
