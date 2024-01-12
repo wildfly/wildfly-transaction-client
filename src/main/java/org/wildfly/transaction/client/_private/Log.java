@@ -423,4 +423,8 @@ public interface Log extends BasicLogger {
 
     @Message(id = 101, value = "Failed to read Xid '%s' from xa resource recovery file %s")
     IOException readXidFromXAResourceRecoveryFileFailed(String xidString, Path filePath, @Cause Exception e);
+
+    @LogMessage(level = Logger.Level.WARN)
+    @Message(id = 102, value = "Failed to set transaction timeout of %d")
+    void setTimeoutUnsuccessful(int timeout);
 }
