@@ -173,7 +173,9 @@ public final class LocalTransaction extends AbstractTransaction {
         final int estimatedRemainingTime = getEstimatedRemainingTime();
         if(estimatedRemainingTime == 0) throw Log.log.cannotEnlistToTimeOutTransaction(xaRes, this);
         try {
-            xaRes.setTransactionTimeout(estimatedRemainingTime);
+            if (!xaRes.setTransactionTimeout(estimatedRemainingTime)) {
+                Log.log.setTimeoutUnsuccessful(estimatedRemainingTime);
+            }
         } catch (XAException e) {
             throw Log.log.setTimeoutFailed(estimatedRemainingTime, e);
         }
