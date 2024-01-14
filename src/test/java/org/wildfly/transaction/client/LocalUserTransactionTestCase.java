@@ -23,7 +23,13 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.wildfly.transaction.client.provider.jboss.*;
+import org.wildfly.transaction.client.provider.jboss.TestImportedTransaction;
+import org.wildfly.transaction.client.provider.jboss.TestTransaction;
+import org.wildfly.transaction.client.provider.jboss.TestTransactionManager;
+import org.wildfly.transaction.client.provider.jboss.TestTransactionProvider;
+import org.wildfly.transaction.client.provider.jboss.TestXAResource;
+import org.wildfly.transaction.client.provider.jboss.TestXAResourceRecoveryRegistry;
+import org.wildfly.transaction.client.provider.jboss.TestXid;
 
 import javax.transaction.xa.XAResource;
 import java.net.URI;
