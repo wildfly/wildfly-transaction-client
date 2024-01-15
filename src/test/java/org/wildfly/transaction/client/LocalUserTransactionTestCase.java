@@ -28,6 +28,7 @@ import org.wildfly.transaction.client.provider.jboss.TestTransaction;
 import org.wildfly.transaction.client.provider.jboss.TestTransactionManager;
 import org.wildfly.transaction.client.provider.jboss.TestTransactionProvider;
 import org.wildfly.transaction.client.provider.jboss.TestXAResource;
+import org.wildfly.transaction.client.provider.jboss.TestXAResourceRecoveryRegistry;
 import org.wildfly.transaction.client.provider.jboss.TestXid;
 
 import javax.transaction.xa.XAResource;
@@ -40,9 +41,11 @@ import java.util.List;
  */
 public class LocalUserTransactionTestCase {
 
+    private static final TestXAResourceRecoveryRegistry testXAResourceRecoveryRegistry = new TestXAResourceRecoveryRegistry();
+
     @BeforeClass
     public static void init() {
-        final LocalTransactionContext transactionContext = new LocalTransactionContext(new TestTransactionProvider(500, Path.of("./target")));
+        final LocalTransactionContext transactionContext = new LocalTransactionContext(new TestTransactionProvider(500, Path.of("./target"), testXAResourceRecoveryRegistry));
         LocalTransactionContext.getContextManager().setGlobalDefault(transactionContext);
     }
 
@@ -207,4 +210,28 @@ public class LocalUserTransactionTestCase {
         Assert.assertFalse(TestTransactionManager.rolledback);
     }
 
+    @Test
+    public void removeXAResourceRecoveryTest() throws Exception {
+        ContextTransactionManager tm = ContextTransactionManager.getInstance();
+        Assert.assertNull(tm.stateRef.get().transaction);
+        tm.begin();
+        Assert.assertTrue(TestTransactionProvider.newTransactionCreated);
+        Assert.assertNotNull(tm.stateRef.get().transaction);
+
+        Transaction t = tm.stateRef.get().transaction;
+        Assert.assertNotNull(t);
+        Assert.assertTrue(t instanceof LocalTransaction);
+        LocalTransaction lt = (LocalTransaction) t;
+
+        tm.commit();
+        Assert.assertNull(tm.stateRef.get().transaction);
+        Assert.assertTrue(TestTransactionManager.committed);
+        Assert.assertFalse(TestTransactionManager.rolledback);
+
+        TestTransactionProvider testTransactionProvider = (TestTransactionProvider) lt.getProvider();
+        Assert.assertNotNull(testXAResourceRecoveryRegistry.getXaResourceRecovery());
+
+        testTransactionProvider.removeXAResourceRecovery(testXAResourceRecoveryRegistry);
+        Assert.assertNull(testXAResourceRecoveryRegistry.getXaResourceRecovery());
+    }
 }

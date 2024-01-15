@@ -25,7 +25,7 @@
     <parent>
         <groupId>org.jboss</groupId>
         <artifactId>jboss-parent</artifactId>
-        <version>40</version>
+        <version>41</version>
         <relativePath/>
     </parent>
 
@@ -53,13 +53,13 @@
         <version.org.jboss.logmanager>2.0.7.Final</version.org.jboss.logmanager>
         <version.org.jboss.narayana>7.0.0.Final</version.org.jboss.narayana>
         <version.org.jboss.remoting>5.0.27.Final</version.org.jboss.remoting>
-        <version.org.jboss.xnio>3.8.10.Final</version.org.jboss.xnio>
+        <version.org.jboss.xnio>3.8.12.Final</version.org.jboss.xnio>
         <version.org.kohsuke.metainf-services>1.11</version.org.kohsuke.metainf-services>
         <version.org.wildfly.common>1.7.0.Final</version.org.wildfly.common>
         <version.org.wildfly.elytron>2.2.2.Final</version.org.wildfly.elytron>
         <version.org.wildfly.naming-client>2.0.1.Final</version.org.wildfly.naming-client>
         <version.bridger>1.6.Final</version.bridger>
-        <version.org.jboss.byteman>4.0.18</version.org.jboss.byteman>
+        <version.org.jboss.byteman>4.0.22</version.org.jboss.byteman>
 
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
@@ -216,7 +216,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13.1</version>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -22,16 +22,21 @@ import org.jboss.tm.XAResourceRecoveryRegistry;
 
 public class TestXAResourceRecoveryRegistry implements XAResourceRecoveryRegistry {
 
+    private XAResourceRecovery xaResourceRecovery;
 
     public TestXAResourceRecoveryRegistry(){}
 
     @Override
     public void addXAResourceRecovery(XAResourceRecovery xaResourceRecovery) {
-
+        this.xaResourceRecovery = xaResourceRecovery;
     }
 
     @Override
     public void removeXAResourceRecovery(XAResourceRecovery xaResourceRecovery) {
+        this.xaResourceRecovery = null;
+    }
 
+    public XAResourceRecovery getXaResourceRecovery() {
+        return xaResourceRecovery;
     }
 }
