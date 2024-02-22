@@ -74,6 +74,10 @@ public interface Log extends BasicLogger {
     @Message(value = "Closing the recovery stream after recovery failed threw an exception")
     void recoverySuppressedException(@Cause XAException e);
 
+    @LogMessage(level = Logger.Level.DEBUG)
+    @Message(value = "Failed to set transaction timeout of %d")
+    void setTimeoutUnsuccessful(int timeout);
+
     // Trace
 
     @LogMessage(level = Logger.Level.TRACE)
