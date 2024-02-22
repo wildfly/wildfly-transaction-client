@@ -74,6 +74,10 @@ public interface Log extends BasicLogger {
     @Message(value = "Closing the recovery stream after recovery failed threw an exception")
     void recoverySuppressedException(@Cause XAException e);
 
+    @LogMessage(level = Logger.Level.DEBUG)
+    @Message(value = "Failed to set transaction timeout of %d")
+    void setTimeoutUnsuccessful(int timeout);
+
     // Trace
 
     @LogMessage(level = Logger.Level.TRACE)
@@ -423,8 +427,4 @@ public interface Log extends BasicLogger {
 
     @Message(id = 101, value = "Failed to read Xid '%s' from xa resource recovery file %s")
     IOException readXidFromXAResourceRecoveryFileFailed(String xidString, Path filePath, @Cause Exception e);
-
-    @LogMessage(level = Logger.Level.WARN)
-    @Message(id = 102, value = "Failed to set transaction timeout of %d")
-    void setTimeoutUnsuccessful(int timeout);
 }
