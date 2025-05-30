@@ -192,11 +192,6 @@
             <version>${version.org.jboss.remoting}</version>
         </dependency>
         <dependency>
-            <groupId>org.wildfly.security</groupId>
-            <artifactId>wildfly-elytron</artifactId>
-            <version>${version.org.wildfly.elytron}</version>
-        </dependency>
-        <dependency>
             <groupId>org.wildfly</groupId>
             <artifactId>wildfly-naming-client</artifactId>
             <version>${version.org.wildfly.naming-client}</version>
