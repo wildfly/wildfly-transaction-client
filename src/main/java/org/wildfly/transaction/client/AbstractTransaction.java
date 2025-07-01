@@ -284,11 +284,11 @@ public abstract class AbstractTransaction implements Transaction {
 
         public void beforeCompletion() {
             try {
-                if (importBacking()) try {
+                if (importBacking()) {
                     sync.beforeCompletion();
-                } finally {
                     unimportBacking();
                 } else {
+                    unimportBacking();
                     performConsumer(Synchronization::beforeCompletion, sync);
                 }
             } catch (SystemException e) {
@@ -298,11 +298,11 @@ public abstract class AbstractTransaction implements Transaction {
 
         public void afterCompletion(final int status) {
             try {
-                if (importBacking()) try {
+                if (importBacking()) {
                     sync.afterCompletion(status);
-                } finally {
                     unimportBacking();
                 } else {
+                    unimportBacking();
                     performConsumer(Synchronization::afterCompletion, sync, status);
                 }
             } catch (SystemException e) {
