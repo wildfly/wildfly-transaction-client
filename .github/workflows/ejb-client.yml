@@ -41,7 +41,7 @@ jobs:
       run: |
         cd jboss-ejb-client
         mvn -ntp -U -B -Dmaven.source.skip -Dversion.org.wildfly.transaction.client=$WTC_VER -Dmaven.compiler.showWarnings=false -Dmaven.compiler.showDeprecation=false clean install
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       if: failure()
       with:
         name: surefire-${{ matrix.jdk-distribution }}-${{ matrix.jdk-version }}-${{ matrix.os }}
