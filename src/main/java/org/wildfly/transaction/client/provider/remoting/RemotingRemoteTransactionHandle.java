@@ -112,7 +112,6 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                         int messageId = is.read();
                         if (messageId == -1) {
                             statusRef.set(Status.STATUS_COMMITTED);
-                            channel.notifyTransactionEnd(id);
                         } else {
                             int len = StreamUtils.readPackedUnsignedInt32(is);
                             if (messageId == Protocol.P_UT_HME_EXC) {
@@ -165,6 +164,10 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                 }
             } finally {
                 statusRef.compareAndSet(Status.STATUS_COMMITTING, Status.STATUS_UNKNOWN);
+                int finalStatus = statusRef.get();
+                if (finalStatus != Status.STATUS_ACTIVE && finalStatus != Status.STATUS_MARKED_ROLLBACK) {
+                    channel.notifyTransactionEnd(id);
+                }
             }
         }
     }
@@ -203,7 +206,6 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                         int messageId = is.read();
                         if (messageId == -1) {
                             statusRef.set(Status.STATUS_ROLLEDBACK);
-                            channel.notifyTransactionEnd(id);
                         } else {
                             int len = StreamUtils.readPackedUnsignedInt32(is);
                             if (messageId == Protocol.P_UT_IS_EXC) {
@@ -241,6 +243,10 @@ class RemotingRemoteTransactionHandle implements SimpleTransactionControl {
                 }
             } finally {
                 statusRef.compareAndSet(Status.STATUS_ROLLING_BACK, Status.STATUS_UNKNOWN);
+                int finalStatus = statusRef.get();
+                if (finalStatus != Status.STATUS_ACTIVE && finalStatus != Status.STATUS_MARKED_ROLLBACK) {
+                    channel.notifyTransactionEnd(id);
+                }
             }
         }
     }

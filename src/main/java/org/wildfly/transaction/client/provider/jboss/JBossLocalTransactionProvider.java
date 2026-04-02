@@ -416,6 +416,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             } catch (Throwable /* RuntimeException | SystemException */ e) {
                 throw Log.log.resourceManagerErrorXa(XAException.XAER_RMERR, e);
             } finally {
+                dropLocal(transaction);
                 ext.removeImportedTransaction(gtid);
             }
         }
@@ -533,6 +534,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
                         throw new XAException(XAException.XA_RETRY);
                     }
                 }
+                dropLocal(transaction);
             } catch (XAException e) {
                 throw initializeSuppressed(e, importedTransaction);
             } catch (HeuristicMixedException e) {
