@@ -41,7 +41,7 @@ public class TestImportedTransaction extends TestTransaction implements Imported
     public int doPrepare() {
         Assert.assertTrue(state.equals(State.ACTIVE));
         state = State.PREPARED;
-        return 1;
+        return 0; // TwoPhaseOutcome.PREPARE_OK
     }
 
     @Override
@@ -53,7 +53,7 @@ public class TestImportedTransaction extends TestTransaction implements Imported
 
     @Override
     public void doRollback() throws IllegalStateException {
-        Assert.assertTrue(state.equals(State.PREPARED));
+        Assert.assertTrue(state.equals(State.ACTIVE) || state.equals(State.PREPARED));
         state = State.ROLLED_BACK;
     }
 

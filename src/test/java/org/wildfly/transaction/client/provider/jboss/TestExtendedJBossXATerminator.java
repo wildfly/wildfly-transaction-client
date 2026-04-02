@@ -75,6 +75,6 @@ public class TestExtendedJBossXATerminator implements ExtendedJBossXATerminator 
 
     @Override
     public void removeImportedTransaction(Xid xid) {
-        throw Assert.unsupported();
+        // no-op: needed to allow commit/rollback of imported transactions in tests
     }
 }
