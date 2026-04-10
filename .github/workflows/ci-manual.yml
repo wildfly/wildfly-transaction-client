@@ -30,11 +30,10 @@ on:
       jdk-version:
         description: 'JDK Version'
         required: false
-        default: '11'
+        default: '25'
         type: choice
         options:
-          - 11
-          - 17
+          - 25
 
 jobs:
   build-test:
