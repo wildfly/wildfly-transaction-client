@@ -58,7 +58,7 @@
         <version.org.wildfly.common>2.0.1</version.org.wildfly.common>
         <version.org.wildfly.elytron>2.8.4.Final</version.org.wildfly.elytron>
         <version.org.wildfly.naming-client>2.0.1.Final</version.org.wildfly.naming-client>
-        <version.bridger>1.6.Final</version.bridger>
+        <version.bridger>1.8</version.bridger>
         <version.org.jboss.byteman>4.0.26</version.org.jboss.byteman>
 
         <maven.compiler.source>11</maven.compiler.source>
