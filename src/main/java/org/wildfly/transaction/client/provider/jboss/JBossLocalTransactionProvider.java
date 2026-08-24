@@ -53,6 +53,7 @@ import org.jboss.tm.XAResourceRecovery;
 import org.jboss.tm.XAResourceRecoveryRegistry;
 import org.wildfly.common.Assert;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.SimpleXid;
@@ -82,6 +83,12 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
 
     JBossLocalTransactionProvider(final ExtendedJBossXATerminator ext, final int staleTransactionTime, final TransactionManager tm,
                                   final XAResourceRecoveryRegistry registry, final Path xaRecoveryDirRelativeToPath) {
+        this(ext, staleTransactionTime, tm, registry, xaRecoveryDirRelativeToPath, null);
+    }
+
+    JBossLocalTransactionProvider(final ExtendedJBossXATerminator ext, final int staleTransactionTime, final TransactionManager tm,
+                                  final XAResourceRecoveryRegistry registry, final Path xaRecoveryDirRelativeToPath,
+                                  final AuthenticationContext recoveryAuthenticationContext) {
         Assert.checkMinimumParameter("setTransactionTimeout", 0, staleTransactionTime);
         this.staleTransactionTime = staleTransactionTime;
         this.ext = Assert.checkNotNullParam("ext", ext);
@@ -95,9 +102,14 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             Log.log.doRecoverFailureOnIntialization(e);
         }
         this.fileSystemXAResourceRegistry = new FileSystemXAResourceRegistry(this, xaRecoveryDirRelativeToPath);
-        XAResourceRegistryProviderHolder.register(fileSystemXAResourceRegistry::getInDoubtXAResources);
-        xaResourceRecovery = fileSystemXAResourceRegistry::getInDoubtXAResources;
-        registry.addXAResourceRecovery(xaResourceRecovery);
+
+        final XAResourceRecovery inDoubtRecovery = recoveryAuthenticationContext != null
+            ? () -> recoveryAuthenticationContext.run((java.security.PrivilegedAction<XAResource[]>) fileSystemXAResourceRegistry::getInDoubtXAResources)
+            : fileSystemXAResourceRegistry::getInDoubtXAResources;
+
+        this.xaResourceRecovery = inDoubtRecovery;
+        XAResourceRegistryProviderHolder.register(inDoubtRecovery::getXAResources);
+        registry.addXAResourceRecovery(inDoubtRecovery);
     }
 
     /**
@@ -679,6 +691,7 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         private TransactionManager transactionManager;
         private XAResourceRecoveryRegistry xaResourceRecoveryRegistry;
         private Path xaRecoveryLogDirRelativeToPath;
+        private AuthenticationContext recoveryAuthenticationContext;
 
         Builder() {
         }
@@ -766,6 +779,16 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
         }
 
         /**
+         * Set the authentication context used when recovering outflowed remote XA resources.
+         *
+         * @param recoveryAuthenticationContext the context for recovery connections, or {@code null} for legacy behaviour
+         */
+        public Builder setRecoveryAuthenticationContext(final AuthenticationContext recoveryAuthenticationContext) {
+            this.recoveryAuthenticationContext = recoveryAuthenticationContext;
+            return this;
+        }
+
+        /**
          * Build this provider.  If any required properties are {@code null}, an exception is thrown.
          *
          * @return the built provider (not {@code null})
@@ -782,11 +805,13 @@ public abstract class JBossLocalTransactionProvider implements LocalTransactionP
             if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.arjunacore.TransactionManagerImple
              || transactionManager instanceof com.arjuna.ats.jbossatx.jta.TransactionManagerDelegate) {
                 return new JBossJTALocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator,
-                        transactionManager, xaResourceRecoveryRegistry, xaRecoveryLogDirRelativeToPath);
+                        transactionManager, xaResourceRecoveryRegistry, xaRecoveryLogDirRelativeToPath,
+                        recoveryAuthenticationContext);
             } else if (transactionManager instanceof com.arjuna.ats.internal.jta.transaction.jts.TransactionManagerImple
              || transactionManager instanceof com.arjuna.ats.jbossatx.jts.TransactionManagerDelegate) {
                 return new JBossJTSLocalTransactionProvider(staleTransactionTime, extendedJBossXATerminator,
-                        transactionManager, xaResourceRecoveryRegistry, xaRecoveryLogDirRelativeToPath);
+                        transactionManager, xaResourceRecoveryRegistry, xaRecoveryLogDirRelativeToPath,
+                        recoveryAuthenticationContext);
             } else {
                 throw Log.log.unknownTransactionManagerType(transactionManager.getClass());
             }
