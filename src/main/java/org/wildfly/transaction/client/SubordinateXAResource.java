@@ -60,24 +60,25 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     private final AtomicInteger stateRef = new AtomicInteger(0);
 
     SubordinateXAResource(final URI location, final String parentName, XAResourceRegistry recoveryRegistry) {
-        this.location = location;
-        this.parentName = parentName;
-        this.resourceRegistry = recoveryRegistry;
-        this.authenticationContext = AuthenticationContext.captureCurrent();
+        this(location, 0, parentName, (Xid) null, recoveryRegistry, AuthenticationContext.captureCurrent());
     }
 
     SubordinateXAResource(final URI location, final String parentName, Xid xid, final int flags, XAResourceRegistry recoveryRegistry) {
-        this(location, parentName, recoveryRegistry);
-        this.xid = xid;
-        stateRef.set(flags);
+        this(location, flags, parentName, xid, recoveryRegistry, AuthenticationContext.captureCurrent());
     }
 
     SubordinateXAResource(final URI location, final int flags, final String parentName) {
+        this(location, flags, parentName, (Xid) null, (XAResourceRegistry) null , AuthenticationContext.captureCurrent());
+    }
+
+    SubordinateXAResource(final URI location, final int flags, final String parentName, Xid xid,
+            final XAResourceRegistry recoveryRegistry, final AuthenticationContext authCtx) {
         this.location = location;
+        this.stateRef.set(flags);
         this.parentName = parentName;
-        stateRef.set(flags);
-        this.resourceRegistry = null;
-        this.authenticationContext = AuthenticationContext.captureCurrent();
+        this.xid = xid;
+        this.resourceRegistry = recoveryRegistry;
+        this.authenticationContext = authCtx;
     }
 
     Xid getXid() {
@@ -241,8 +242,15 @@ final class SubordinateXAResource implements XAResource, XARecoverable, Serializ
     }
 
     private RemoteTransactionPeer getRemoteTransactionPeer() throws XAException {
+        AuthenticationContext ctx = authenticationContext;
+        if (resourceRegistry == null) {
+            // deserialized from Narayana object store — captureCurrent() at readResolve() time had no auth context
+            final XAResourceRegistryProvider provider = XAResourceRegistryProviderHolder.getInstance();
+            final AuthenticationContext recoveryCtx = provider != null ? provider.getRecoveryAuthenticationContext() : null;
+            if (recoveryCtx != null) ctx = recoveryCtx;
+        }
         try {
-            return authenticationContext.run((PrivilegedExceptionAction<RemoteTransactionPeer>) () -> getProvider().getPeerHandleForXa(location, null, null));
+            return ctx.run((PrivilegedExceptionAction<RemoteTransactionPeer>) () -> getProvider().getPeerHandleForXa(location, null, null));
         } catch (PrivilegedActionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof XAException) {
