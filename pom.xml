@@ -210,8 +210,9 @@
         </dependency>
         <dependency>
             <groupId>org.wildfly.security</groupId>
-            <artifactId>wildfly-elytron</artifactId>
+            <artifactId>wildfly-elytron-bom-all</artifactId>
             <version>${version.org.wildfly.elytron}</version>
+            <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.wildfly</groupId>
