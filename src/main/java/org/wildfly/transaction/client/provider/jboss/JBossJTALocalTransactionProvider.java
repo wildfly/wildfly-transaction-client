@@ -43,6 +43,7 @@ import org.jboss.tm.ExtendedJBossXATerminator;
 import org.jboss.tm.TransactionTimeoutConfiguration;
 import org.jboss.tm.XAResourceRecoveryRegistry;
 import org.wildfly.common.annotation.NotNull;
+import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client._private.Log;
 
@@ -51,8 +52,9 @@ final class JBossJTALocalTransactionProvider extends JBossLocalTransactionProvid
     private final Object resourceLock = new Object();
 
     JBossJTALocalTransactionProvider(final int staleTransactionTime, final ExtendedJBossXATerminator ext, final TransactionManager tm,
-                                     final XAResourceRecoveryRegistry reg, final Path xaRecoveryPath) {
-        super(ext, staleTransactionTime, tm, reg, xaRecoveryPath);
+                                     final XAResourceRecoveryRegistry reg, final Path xaRecoveryPath,
+                                     final AuthenticationContext recoveryAuthenticationContext) {
+        super(ext, staleTransactionTime, tm, reg, xaRecoveryPath, recoveryAuthenticationContext);
     }
 
     int getTransactionManagerTimeout() throws SystemException {
