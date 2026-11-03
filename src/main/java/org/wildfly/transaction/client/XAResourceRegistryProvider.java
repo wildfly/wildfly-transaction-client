@@ -20,6 +20,8 @@ package org.wildfly.transaction.client;
 
 import javax.transaction.xa.XAResource;
 
+import org.wildfly.security.auth.client.AuthenticationContext;
+
 /**
  * <p>
  * Interface which provides ability to list in-doubt {@link XAResource}s at the time.
@@ -45,4 +47,8 @@ public interface XAResourceRegistryProvider {
      * @return list of in-doubt {@link XAResource}s previously saved via handling of {@link XAResourceRegistry}.
      */
     XAResource[] getInDoubtXAResources();
+
+    default AuthenticationContext getRecoveryAuthenticationContext() {
+        return null;
+    }
 }
